@@ -1,0 +1,18 @@
+"""Bosch palette and status colors (shared by core reports and UI)."""
+
+# Primary
+BOSCH_RED = "#ED0007"
+BOSCH_DARK_BLUE = "#002B5C"
+BOSCH_WHITE = "#FFFFFF"
+
+# Secondary
+BOSCH_LIGHT_GRAY = "#F2F2F2"
+BOSCH_MID_GRAY = "#D9D9D9"
+BOSCH_DARK_GRAY = "#333333"
+BOSCH_STEEL = "#5A5A5A"
+
+# Status
+STATUS_OK = "#00884B"
+STATUS_WARNING = "#F5A623"
+STATUS_FAIL = "#ED0007"
+STATUS_NO_DATA = "#B0B0B0"
