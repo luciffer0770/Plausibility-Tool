@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""PRÜF — Plausibility Check Tool entry point."""
+# -*- coding: utf-8 -*-
+"""PRUF - Plausibility Check Tool entry point."""
 
 from __future__ import annotations
 
