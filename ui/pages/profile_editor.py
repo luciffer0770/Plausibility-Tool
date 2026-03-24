@@ -16,6 +16,7 @@ from core.profile_manager import (
     import_profile_json,
 )
 from database.db_manager import DatabaseManager
+from ui.modal_utils import safe_grab_set
 from ui.pages.base_page import BasePage
 from ui.theme import (
     BOSCH_DARK_GRAY,
@@ -329,7 +330,13 @@ class ProfileEditorPage(BasePage):
         dlg = ctk.CTkToplevel(self)
         dlg.title("Clone profile")
         dlg.geometry("360x140")
-        dlg.grab_set()
+        try:
+            dlg.transient(self.winfo_toplevel())
+        except Exception:
+            pass
+        dlg.lift()
+        dlg.focus_force()
+        safe_grab_set(dlg)
         src = ctk.StringVar(value=EngineType.NA_4CYL.value)
         ctk.CTkLabel(dlg, text="Copy limits from engine type:", font=font_body()).pack(padx=GRID, pady=GRID)
         ctk.CTkOptionMenu(dlg, values=[e.value for e in EngineType], variable=src, width=240).pack(padx=GRID)

@@ -41,6 +41,8 @@ PRÜF is a **desktop (Tk) app**. Codespaces are Linux and headless, so the repo 
 
 If your organisation disables the **desktop-lite** feature, ask them to allow it for this repo, or develop on a **local Windows** machine instead.
 
+Modal dialogs use a deferred `grab_set` so they work on **noVNC / remote X** where “window not viewable” errors can occur.
+
 ## Packaging
 
 Install PyInstaller, then:

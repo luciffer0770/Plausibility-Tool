@@ -9,6 +9,7 @@ import customtkinter as ctk
 
 from core.models import EngineType, Project
 from core.profile_manager import ensure_default_profile
+from ui.modal_utils import safe_grab_set
 from ui.pages.base_page import BasePage
 from ui.theme import (
     BOSCH_DARK_GRAY,
@@ -148,7 +149,13 @@ class LoginPage(BasePage):
         dlg = ctk.CTkToplevel(self)
         dlg.title("New project")
         dlg.geometry("420x320")
-        dlg.grab_set()
+        try:
+            dlg.transient(self.winfo_toplevel())
+        except Exception:
+            pass
+        dlg.lift()
+        dlg.focus_force()
+        safe_grab_set(dlg)
 
         name_v = ctk.StringVar()
         engine_v = ctk.StringVar(value=EngineType.TURBO_4CYL.value)
