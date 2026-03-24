@@ -22,7 +22,14 @@ from ui.pages.profile_editor import ProfileEditorPage
 from ui.pages.report_page import ReportPage
 from ui.pages.settings_page import SettingsPage
 from ui.pages.upload_page import UploadPage
-from ui.theme import BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, BOSCH_STEEL, GRID, font_small
+from ui.theme import (
+    BOSCH_LIGHT_GRAY,
+    BOSCH_MID_GRAY,
+    BOSCH_STEEL,
+    GRID,
+    ensure_theme_ready,
+    font_small,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,7 @@ class PrufApp(ctk.CTk):
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
         super().__init__()
+        ensure_theme_ready()
         self.title("PRÜF — Plausibility Check Tool")
         self.geometry("1400x850")
         self.minsize(1200, 700)
