@@ -9,7 +9,7 @@ from typing import Optional
 
 
 class EngineType(Enum):
-    """Supported engine types for limit profiles."""
+    """Default engine type presets (optional)."""
 
     TURBO_4CYL = "Turbo 4-Cylinder"
     NA_4CYL = "NA 4-Cylinder"
@@ -25,15 +25,38 @@ class ParameterType(Enum):
     EMISSION = "Emission"
     COMBUSTION = "Combustion"
     OTHER = "Other"
+    SET = "Set"
 
 
 class Status(Enum):
-    """Plausibility status for a measurement."""
+    """Legacy single-value status."""
 
     OK = "OK"
     WARNING = "WARNING"
     FAIL = "FAIL"
     NO_DATA = "NO_DATA"
+
+
+def parameter_type_from_string(s: str) -> "ParameterType":
+    s = (s or "").strip().lower()
+    mapping = {
+        "temperature": ParameterType.TEMPERATURE,
+        "temp": ParameterType.TEMPERATURE,
+        "pressure": ParameterType.PRESSURE,
+        "press": ParameterType.PRESSURE,
+        "emission": ParameterType.EMISSION,
+        "emissions": ParameterType.EMISSION,
+        "combustion": ParameterType.COMBUSTION,
+        "set": ParameterType.SET,
+        "other": ParameterType.OTHER,
+    }
+    for k, v in mapping.items():
+        if k in s or s == k:
+            return v
+    for p in ParameterType:
+        if p.value.lower() == s:
+            return p
+    return ParameterType.OTHER
 
 
 @dataclass
@@ -51,6 +74,7 @@ class LimitDefinition:
     corrective_action: str = ""
     is_required: bool = False
     is_enabled: bool = True
+    category: str = ""
 
 
 @dataclass
@@ -64,13 +88,17 @@ class MeasurementResult:
     value_max: Optional[float] = None
     value_avg: Optional[float] = None
     value_type: str = "instant"
-    status: Status = Status.NO_DATA
+    status: str = "NO_DATA"
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
     deviation_pct: Optional[float] = None
     root_cause: str = ""
     corrective_action: str = ""
     timestamp: Optional[str] = None
+    category: str = ""
+    param_type: str = ""
+    unit: str = ""
+    num_runs: int = 0
 
 
 @dataclass
@@ -80,11 +108,21 @@ class Project:
     id: Optional[int] = None
     name: str = ""
     engine_type: EngineType = EngineType.TURBO_4CYL
+    engine_type_name: str = ""
+    engine_code: str = ""
     engine_variant: str = ""
     test_bed_id: str = ""
+    customer_oem: str = ""
+    emission_norm: str = ""
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     is_active: bool = True
+
+    def engine_type_key(self) -> str:
+        """Key for limit_profiles.engine_type."""
+        if self.engine_type_name and str(self.engine_type_name).strip():
+            return str(self.engine_type_name).strip()
+        return self.engine_type.value
 
 
 @dataclass

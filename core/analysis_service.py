@@ -1,46 +1,25 @@
-"""Run plausibility check for an upload and persist results."""
+"""Run plausibility check for an upload and persist results (v3 full-DataFrame)."""
 
 from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import pandas as pd
 
-from core.data_loader import apply_mapping, load_dataframe
-from core.models import LimitDefinition, MeasurementResult, ParameterType, Status
-from core.plausibility_engine import classify_with_limits, status_sort_rank
+from core.data_loader import build_canonical_numeric_df, load_puma_file
+from core.models import LimitDefinition, ParameterType
+from core.plausibility_engine import (
+    check_parameter,
+    limits_display_str,
+    resolve_data_column,
+    status_sort_rank,
+)
+from core.puma_constants import parameter_defaults
 from database.db_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
-
-
-def _values_for_param(row: pd.Series, param: str) -> tuple[
-    Optional[float], Optional[float], Optional[float], Optional[float]
-]:
-    """Return (instant, min, max, avg) from mapped row keys param__role."""
-    instant = vmin = vmax = vavg = None
-    for role, target in (
-        ("instant", "instant"),
-        ("min", "vmin"),
-        ("max", "vmax"),
-        ("avg", "vavg"),
-    ):
-        key = f"{param}__{role}"
-        if key in row.index and pd.notna(row[key]):
-            val = float(row[key])
-            if target == "instant":
-                instant = val
-            elif target == "vmin":
-                vmin = val
-            elif target == "vmax":
-                vmax = val
-            else:
-                vavg = val
-    if instant is None and vavg is not None:
-        instant = vavg
-    return instant, vmin, vmax, vavg
 
 
 def run_plausibility_for_file(
@@ -49,130 +28,143 @@ def run_plausibility_for_file(
     engine_type_value: str,
     file_path: Path,
     timestamp_col: Optional[str],
-    mappings: list[dict[str, Any]],
+    mappings: Optional[List[dict[str, Any]]],
     file_name: Optional[str] = None,
 ) -> int:
     """
-    Parse file, evaluate first data row against limits, store session + measurements.
+    Parse PUMA file, run limits on all data rows per parameter, persist session.
 
-    Returns:
-        New upload_sessions.id.
+    `mappings` is ignored in v3 (kept for API compatibility).
     """
     path = Path(file_path)
-    df_raw = load_dataframe(path)
-    mapped_df, summary = apply_mapping(df_raw, timestamp_col, mappings)
-    if mapped_df.empty:
-        raise ValueError("No data rows after mapping")
+    df_raw, meta = load_puma_file(path)
+    canon_df, _ = build_canonical_numeric_df(df_raw)
 
     defs = db.get_limit_profile(engine_type_value)
     defs_by_name = {d.parameter_name: d for d in defs}
-    default_pt = defs[0].parameter_type if defs else ParameterType.OTHER
 
-    row0 = mapped_df.iloc[0]
-    ts = None
-    if "timestamp" in mapped_df.columns:
-        raw_ts = row0["timestamp"]
-        ts = str(raw_ts) if pd.notna(raw_ts) else None
+    results: List[tuple[Any, ...]] = []
+    ok_n = high_n = low_n = nd_n = 0
 
-    parameters: list[str] = summary.get("parameters") or []
-    results: list[MeasurementResult] = []
-
-    for param in parameters:
-        d = defs_by_name.get(param)
-        if d is None:
-            d = LimitDefinition(
-                parameter_name=param,
-                parameter_type=default_pt,
-                description="",
-                unit="",
-            )
-        elif not d.is_enabled:
+    for d in sorted(defs, key=lambda x: x.parameter_name):
+        if not d.is_enabled:
             continue
-        instant, vmin, vmax, vavg = _values_for_param(row0, param)
-        check_val = instant
-        if check_val is None and vavg is not None:
-            check_val = vavg
-        status_s, dev = classify_with_limits(
-            check_val,
-            d.lower_limit,
-            d.upper_limit,
-            d.warning_pct,
-        )
-        try:
-            st = Status(status_s)
-        except ValueError:
-            st = Status.NO_DATA
+        col = resolve_data_column(d.parameter_name, canon_df.columns)
+        desc = d.description or parameter_defaults(d.parameter_name)[0]
+        cat = d.category or parameter_defaults(d.parameter_name)[1]
+        ptype = d.parameter_type.value.lower()
+        unit = d.unit or parameter_defaults(d.parameter_name)[3]
+
+        if col is None:
+            st = "NO_DATA"
+            chk = {
+                "min": None,
+                "max": None,
+                "avg": None,
+                "num_runs": 0,
+                "status": st,
+                "limits_str": "",
+            }
+            vals: List[float] = []
+        else:
+            series = canon_df[col]
+            vals = []
+            for v in series:
+                if pd.notna(v):
+                    try:
+                        vals.append(float(v))
+                    except (TypeError, ValueError):
+                        pass
+            chk = check_parameter(vals, d.lower_limit, d.upper_limit)
+            st = chk["status"]
+            chk["limits_str"] = limits_display_str(d.lower_limit, d.upper_limit, unit)
+
+        if st == "OK":
+            ok_n += 1
+        elif st == "HIGH":
+            high_n += 1
+        elif st == "LOW":
+            low_n += 1
+        else:
+            nd_n += 1
+
+        vmin = chk.get("min")
+        vmax = chk.get("max")
+        vavg = chk.get("avg")
+        nruns = chk.get("num_runs") or 0
+
         results.append(
-            MeasurementResult(
-                parameter_name=param,
-                description=d.description,
-                measured_value=check_val,
-                value_min=vmin,
-                value_max=vmax,
-                value_avg=vavg,
-                value_type="instant",
-                status=st,
-                lower_limit=d.lower_limit,
-                upper_limit=d.upper_limit,
-                deviation_pct=dev,
-                root_cause=d.root_cause,
-                corrective_action=d.corrective_action,
-                timestamp=ts,
+            (
+                0,
+                d.parameter_name,
+                desc,
+                cat,
+                ptype,
+                unit,
+                nruns,
+                vavg,
+                vmin,
+                vmax,
+                vavg,
+                "aggregate",
+                None,
+                st,
+                None,
+                d.lower_limit,
+                d.upper_limit,
+                d.root_cause or "",
+                d.corrective_action or "",
             )
         )
-
-    ok_n = sum(1 for r in results if r.status == Status.OK)
-    w_n = sum(1 for r in results if r.status == Status.WARNING)
-    f_n = sum(1 for r in results if r.status == Status.FAIL)
-    nd_n = sum(1 for r in results if r.status == Status.NO_DATA)
 
     fname = file_name or path.name
     sid = db.insert_upload_session(
         project_id,
         fname,
         str(path.resolve()),
-        record_count=len(mapped_df),
+        record_count=len(canon_df),
         pass_count=ok_n,
-        warn_count=w_n,
-        fail_count=f_n,
+        warn_count=0,
+        fail_count=high_n + low_n,
+        version_test=meta.get("versiont"),
+        application=meta.get("prname"),
+        datum=meta.get("datum"),
+        above_count=high_n,
+        below_count=low_n,
+        nodata_count=nd_n,
     )
 
-    batch: list[tuple[Any, ...]] = []
-    for r in results:
-        batch.append(
-            (
-                sid,
-                r.parameter_name,
-                r.measured_value,
-                r.value_min,
-                r.value_max,
-                r.value_avg,
-                r.value_type,
-                r.timestamp,
-                r.status.value,
-                r.deviation_pct,
-                r.lower_limit,
-                r.upper_limit,
-                r.root_cause,
-                r.corrective_action,
-            )
-        )
+    batch = []
+    for row in results:
+        r = list(row)
+        r[0] = sid
+        batch.append(tuple(r))
+
     db.insert_measurements_batch(batch)
-    db.update_upload_session_counts(sid, len(mapped_df), ok_n, w_n, f_n)
-    logger.info(
-        "Session %s: %s params OK=%s WARN=%s FAIL=%s ND=%s",
+    db.update_upload_session_counts(
         sid,
-        len(results),
+        len(canon_df),
         ok_n,
-        w_n,
-        f_n,
+        0,
+        high_n + low_n,
+        high_n,
+        low_n,
+        nd_n,
+    )
+    logger.info(
+        "Session %s: rows=%s OK=%s HIGH=%s LOW=%s ND=%s",
+        sid,
+        len(canon_df),
+        ok_n,
+        high_n,
+        low_n,
         nd_n,
     )
     return sid
 
 
-def sort_measurement_results(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Sort by status priority then parameter name."""
+def sort_measurement_results(rows: List[dict[str, Any]]) -> List[dict[str, Any]]:
+    """Sort: failures first, then alphabetically."""
     return sorted(
         rows,
         key=lambda m: (
@@ -182,11 +174,24 @@ def sort_measurement_results(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     )
 
 
-def measurements_to_summary_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
-    """Count statuses from measurement rows."""
-    out = {"OK": 0, "WARNING": 0, "FAIL": 0, "NO_DATA": 0}
+def measurements_to_summary_counts(rows: List[dict[str, Any]]) -> dict[str, int]:
+    """Counts for v3 statuses."""
+    out = {
+        "OK": 0,
+        "HIGH": 0,
+        "LOW": 0,
+        "NO_DATA": 0,
+        "WARNING": 0,
+        "FAIL": 0,
+    }
     for m in rows:
         s = str(m.get("status", "NO_DATA"))
         if s in out:
             out[s] += 1
+        elif s == "FAIL":
+            out["FAIL"] += 1
+    out["TOTAL"] = len(rows)
+    out["PASS"] = out["OK"]
+    out["ABOVE"] = out["HIGH"]
+    out["BELOW"] = out["LOW"]
     return out

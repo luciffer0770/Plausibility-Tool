@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, Optional
 
-from core.models import LimitDefinition, ParameterType
+from core.models import LimitDefinition, ParameterType, parameter_type_from_string
 from core.standard_parameters import default_limit_definitions
 from database.db_manager import DatabaseManager
 
@@ -27,15 +27,19 @@ def _definition_to_dict(d: LimitDefinition) -> dict[str, Any]:
         "corrective_action": d.corrective_action,
         "is_required": d.is_required,
         "is_enabled": d.is_enabled,
+        "category": d.category,
     }
 
 
 def _dict_to_definition(data: dict[str, Any]) -> LimitDefinition:
+    raw_pt = data.get("parameter_type", "")
     pt = ParameterType.OTHER
     for p in ParameterType:
-        if p.value == data.get("parameter_type"):
+        if p.value == raw_pt:
             pt = p
             break
+    if pt == ParameterType.OTHER and raw_pt:
+        pt = parameter_type_from_string(str(raw_pt))
     return LimitDefinition(
         parameter_name=str(data["parameter_name"]),
         parameter_type=pt,
@@ -48,6 +52,7 @@ def _dict_to_definition(data: dict[str, Any]) -> LimitDefinition:
         corrective_action=str(data.get("corrective_action", "")),
         is_required=bool(data.get("is_required", False)),
         is_enabled=bool(data.get("is_enabled", True)),
+        category=str(data.get("category", "")),
     )
 
 
@@ -101,6 +106,7 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
         raise ValueError("Excel must contain a parameter name column")
 
     type_c = col("parameter_type", "type")
+    cat_c = col("category")
     desc_c = col("description", "desc")
     unit_c = col("unit")
     lo_c = col("lower_limit", "lower")
@@ -118,11 +124,8 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
             continue
         pt = ParameterType.OTHER
         if type_c and pd.notna(row[type_c]):
-            raw = str(row[type_c]).strip()
-            for p in ParameterType:
-                if p.value.lower() == raw.lower():
-                    pt = p
-                    break
+            pt = parameter_type_from_string(str(row[type_c]))
+        cat = str(row[cat_c]).strip() if cat_c and pd.notna(row.get(cat_c)) else ""
         desc = str(row[desc_c]).strip() if desc_c and pd.notna(row.get(desc_c)) else ""
         unit = str(row[unit_c]).strip() if unit_c and pd.notna(row.get(unit_c)) else ""
         lo = float(row[lo_c]) if lo_c and pd.notna(row.get(lo_c)) else None
@@ -150,6 +153,7 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
                 parameter_name=pname,
                 parameter_type=pt,
                 description=desc,
+                category=cat,
                 unit=unit,
                 lower_limit=lo,
                 upper_limit=hi,

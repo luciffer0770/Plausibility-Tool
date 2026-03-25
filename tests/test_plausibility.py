@@ -5,7 +5,12 @@ from __future__ import annotations
 import math
 import unittest
 
-from core.plausibility_engine import check_plausibility, deviation_percent, status_sort_rank
+from core.plausibility_engine import (
+    check_parameter,
+    check_plausibility,
+    deviation_percent,
+    status_sort_rank,
+)
 
 
 class TestPlausibility(unittest.TestCase):
@@ -31,6 +36,12 @@ class TestPlausibility(unittest.TestCase):
 
     def test_sort_rank(self) -> None:
         self.assertLess(status_sort_rank("FAIL"), status_sort_rank("WARNING"))
+
+    def test_check_parameter_high_low(self) -> None:
+        r = check_parameter([1.0, 2.0, 3.0], 0.0, 2.5)
+        self.assertEqual(r["status"], "HIGH")
+        r2 = check_parameter([1.0, 2.0], 1.5, 10.0)
+        self.assertEqual(r2["status"], "LOW")
 
 
 if __name__ == "__main__":

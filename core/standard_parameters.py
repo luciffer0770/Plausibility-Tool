@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import List, Optional, Tuple
 
-from core.models import LimitDefinition, ParameterType
+from core.models import LimitDefinition, ParameterType, parameter_type_from_string
+from core.puma_constants import PARAMETER_INFO
 
 # Rows from spec §8: (temp_param, pressure_param, description, turbo_req, na_req)
-# turbo_req / na_req: True = required, False = not applicable, None = optional
 _LAYOUT_ROWS: List[Tuple[Optional[str], Optional[str], str, Optional[bool], Optional[bool]]] = [
     ("T0", "P0", "Air inlet before Filter", True, True),
     ("T1", "P1", "Air inlet after filter", True, True),
@@ -49,19 +49,29 @@ def _unit_for(ptype: ParameterType) -> str:
     return ""
 
 
-def default_limit_definitions(engine_na: bool) -> list[LimitDefinition]:
-    """
-    Build default limit rows for an engine profile (NA vs Turbo).
+def default_limit_definitions_from_parameter_info() -> List[LimitDefinition]:
+    """Seed limits from audited PARAMETER_INFO (v3)."""
+    out: List[LimitDefinition] = []
+    for name, info in sorted(PARAMETER_INFO.items()):
+        pt = parameter_type_from_string(info.get("type", "other"))
+        out.append(
+            LimitDefinition(
+                parameter_name=name,
+                parameter_type=pt,
+                description=info.get("desc", ""),
+                category=info.get("category", ""),
+                unit=info.get("unit", ""),
+                is_required=False,
+                is_enabled=True,
+            )
+        )
+    return out
 
-    Args:
-        engine_na: If True, skip turbo-only / EGR-only parameters.
 
-    Returns:
-        List of LimitDefinition with is_required set from matrix.
-    """
-    out: list[LimitDefinition] = []
+def _legacy_default_limit_definitions(engine_na: bool) -> List[LimitDefinition]:
+    out: List[LimitDefinition] = []
     for t_name, p_name, desc, turbo_req, na_req in _LAYOUT_ROWS:
-        names: list[tuple[str, ParameterType]] = []
+        names: List[Tuple[str, ParameterType]] = []
         if t_name:
             if t_name == "Lambda":
                 pt = ParameterType.EMISSION
@@ -101,10 +111,17 @@ def default_limit_definitions(engine_na: bool) -> list[LimitDefinition]:
     return out
 
 
-def all_standard_parameter_names() -> list[str]:
-    """All unique standard names (for column detection)."""
+def default_limit_definitions(engine_na: bool) -> List[LimitDefinition]:
+    """Prefer v3 PARAMETER_INFO; fall back to legacy matrix."""
+    pi = default_limit_definitions_from_parameter_info()
+    if pi:
+        return pi
+    return _legacy_default_limit_definitions(engine_na)
+
+
+def all_standard_parameter_names() -> List[str]:
     seen: set[str] = set()
-    order: list[str] = []
+    order: List[str] = []
     for t_name, p_name, _, _, _ in _LAYOUT_ROWS:
         for n in (t_name, p_name):
             if n and n not in seen:

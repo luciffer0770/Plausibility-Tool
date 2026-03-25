@@ -1,107 +1,251 @@
-"""PUMA Excel/CSV import and column mapping."""
+"""PUMA file parser: TSV .xls, xlsx, csv — units row, **, aliases."""
 
 from __future__ import annotations
 
 import logging
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
+from core.puma_constants import COLUMN_ALIAS_MAP, canonical_column_name
 from core.standard_parameters import all_standard_parameter_names
 
 logger = logging.getLogger(__name__)
 
 _TIMESTAMP_HINTS = frozenset(
-    {
-        "time",
-        "timestamp",
-        "date",
-        "datetime",
-        "zeit",
-        "datum",
-    }
+    {"time", "timestamp", "date", "datetime", "zeit", "datum"}
+)
+
+_EXCEL_MAGIC = bytes([0xD0, 0xCF, 0x11, 0xE0])
+_ZIP_MAGIC = b"PK"
+
+# Substrings suggesting a units row cell
+_UNIT_TOKENS = (
+    "°c",
+    "°f",
+    "mbar",
+    "bar",
+    "nm",
+    "1/min",
+    "mg/hub",
+    "mg/stroke",
+    "ppm",
+    "%",
+    "kw",
+    "fsn",
 )
 
 
-def _normalize_header(h: Any) -> str:
-    s = str(h).strip()
-    s = re.sub(r"\s+", "_", s)
-    return s
+def detect_file_type(path: Path) -> str:
+    """
+    Return 'xlsx', 'csv', 'tsv', or 'xls_binary'.
+
+    PUMA often uses .xls extension for tab-separated text (not OLE2).
+    """
+    path = Path(path)
+    suf = path.suffix.lower()
+    if suf == ".csv":
+        return "csv"
+    if suf == ".xlsx":
+        return "xlsx"
+    with open(path, "rb") as f:
+        head = f.read(8)
+    if len(head) >= 4 and head[:4] == _EXCEL_MAGIC:
+        return "xls_binary"
+    if len(head) >= 2 and head[:2] == _ZIP_MAGIC and suf == ".xls":
+        return "xlsx"
+    if suf == ".xls":
+        return "tsv"
+    return "csv"
 
 
-def _strip_suffix(name: str) -> tuple[str, Optional[str]]:
-    """Return (base, suffix) for _min/_max/_avg/MIN/MAX/AVG."""
+def _replace_star_star(df: pd.DataFrame) -> pd.DataFrame:
+    out = df.copy()
+
+    def _clean(x: Any) -> Any:
+        if isinstance(x, str) and x.strip() == "**":
+            return np.nan
+        return x
+
+    for c in out.columns:
+        out[c] = out[c].map(_clean)
+    return out
+
+
+def _row_looks_like_units(row: pd.Series, numeric_candidate_cols: List[str]) -> bool:
+    hits = 0
+    checked = 0
+    for c in numeric_candidate_cols[: min(20, len(numeric_candidate_cols))]:
+        v = row.get(c)
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            continue
+        checked += 1
+        s = str(v).strip().lower()
+        if any(tok in s for tok in _UNIT_TOKENS):
+            hits += 1
+        elif s in ("-", "nan", ""):
+            continue
+        elif re.match(r"^-?[\d.]+\s*$", s):
+            continue
+        else:
+            # non-numeric text in a mostly-numeric column region
+            if len(s) < 20 and not s.replace(".", "").replace("-", "").isdigit():
+                hits += 1
+    return checked > 0 and hits >= max(2, checked // 4)
+
+
+def load_puma_file(file_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """
+    Load PUMA export: detect format, drop units row, clean numeric columns.
+
+    Returns:
+        (dataframe with original column names, metadata dict)
+    """
+    path = Path(file_path)
+    ftype = detect_file_type(path)
+    meta: Dict[str, Any] = {"file_type": ftype, "path": str(path.resolve())}
+
+    if ftype == "xlsx":
+        df = pd.read_excel(path, engine="openpyxl", header=0)
+    elif ftype == "xls_binary":
+        try:
+            df = pd.read_excel(path, engine="xlrd")
+        except Exception:
+            df = pd.read_csv(path, sep="\t", encoding="latin-1", header=0, low_memory=False)
+            ftype = "tsv"
+            meta["file_type"] = "tsv_fallback"
+    elif ftype == "tsv":
+        df = pd.read_csv(path, sep="\t", encoding="latin-1", header=0, low_memory=False)
+    else:
+        df = pd.read_csv(path, low_memory=False)
+
+    df.columns = [str(c).strip() for c in df.columns]
+    df = _replace_star_star(df)
+
+    # Candidate numeric columns (skip obvious meta columns)
+    skip_prefix = ("prname", "datum", "zeit", "version")
+    num_candidates: List[str] = []
+    for c in df.columns:
+        cl = c.lower()
+        if any(cl.startswith(p) for p in skip_prefix) or c.upper() == "AVL_INDEP_TIME":
+            continue
+        num_candidates.append(c)
+
+    if len(df) > 1:
+        row1 = df.iloc[0]
+        if _row_looks_like_units(row1, num_candidates):
+            df = df.iloc[1:].reset_index(drop=True)
+            logger.info("Dropped units row (row 1)")
+
+    for c in df.columns:
+        if c in ("PRNAME", "DATUM", "ZEIT", "VERSIONT"):
+            continue
+        try:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
+        except Exception:
+            pass
+
+    # Metadata from first data row if present
+    if len(df) > 0:
+        r0 = df.iloc[0]
+        if "VERSIONT" in df.columns:
+            v = r0.get("VERSIONT")
+            meta["versiont"] = "" if pd.isna(v) else str(v)
+        if "PRNAME" in df.columns:
+            v = r0.get("PRNAME")
+            meta["prname"] = "" if pd.isna(v) else str(v)
+        if "DATUM" in df.columns:
+            v = r0.get("DATUM")
+            meta["datum"] = "" if pd.isna(v) else str(v)
+
+    meta["num_rows"] = len(df)
+    meta["num_cols"] = len(df.columns)
+    return df, meta
+
+
+def build_canonical_numeric_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    """
+    Collapse duplicate columns to canonical names (prefer .1 suffix for measured).
+
+    Returns:
+        (canonical_df, col_map: canonical -> first source column name)
+    """
+    groups: Dict[str, List[str]] = {}
+    for c in df.columns:
+        canon = canonical_column_name(c)
+        groups.setdefault(canon, []).append(c)
+
+    out_cols: Dict[str, pd.Series] = {}
+    col_map: Dict[str, str] = {}
+
+    for canon, sources in groups.items():
+        chosen = None
+        for s in sources:
+            if ".1" in s or s.endswith(".1"):
+                chosen = s
+                break
+        if chosen is None:
+            chosen = sources[0]
+        out_cols[canon] = df[chosen]
+        col_map[canon] = chosen
+
+    return pd.DataFrame(out_cols), col_map
+
+
+def load_dataframe(path: Path) -> pd.DataFrame:
+    """Backward-compatible: return cleaned PUMA dataframe only."""
+    df, _ = load_puma_file(path)
+    return df
+
+
+def _strip_suffix(name: str) -> Tuple[str, Optional[str]]:
     lower = name.lower()
     for suf, tag in (
         ("_min", "min"),
         ("_max", "max"),
         ("_avg", "avg"),
-        (" min", "min"),
-        (" max", "max"),
-        (" avg", "avg"),
     ):
-        if lower.endswith(suf.replace(" ", "_")):
-            base = name[: -len(suf)].strip()
-            return base, tag
+        if lower.endswith(suf):
+            return name[: -len(suf)].strip(), tag
     return name, None
 
 
-def detect_column_mapping(df: pd.DataFrame) -> dict[str, Any]:
-    """
-    Map dataframe columns to parameter names and timestamp.
-
-    Returns:
-        Dict with keys: timestamp_col, mappings (list of dicts with
-        excel_col, parameter, value_role).
-    """
+def detect_column_mapping(df: pd.DataFrame) -> Dict[str, Any]:
+    """Map columns to parameters; supports min/max/avg suffixes and Timestamp."""
     cols = list(df.columns)
-    norm_map: dict[str, str] = {}
-    for c in cols:
-        norm_map[_normalize_header(c)] = str(c)
-
     standards = set(all_standard_parameter_names())
-    mappings: list[dict[str, Any]] = []
-    used_excel: set[str] = set()
 
     timestamp_col: Optional[str] = None
     for c in cols:
-        n = _normalize_header(c).lower()
+        n = str(c).lower().replace(" ", "_")
         for hint in _TIMESTAMP_HINTS:
             if hint in n:
                 timestamp_col = str(c)
                 break
         if timestamp_col:
             break
+    if timestamp_col is None and "AVL_INDEP_TIME" in df.columns:
+        timestamp_col = "AVL_INDEP_TIME"
 
+    mappings: List[Dict[str, Any]] = []
+    used: set[str] = set()
     for c in cols:
         if str(c) == timestamp_col:
             continue
         raw = str(c)
         base, role = _strip_suffix(raw)
-        nb = _normalize_header(base)
-        # exact match
-        param = None
-        if nb in standards:
-            param = nb
-        elif nb.upper() in {s.upper() for s in standards}:
-            for s in standards:
-                if s.upper() == nb.upper():
-                    param = s
-                    break
-        if param:
+        canon = canonical_column_name(base)
+        if canon in standards or base in standards:
+            param = canon if canon in standards else base
             mappings.append(
-                {
-                    "excel_col": raw,
-                    "parameter": param,
-                    "value_role": role or "instant",
-                }
+                {"excel_col": raw, "parameter": param, "value_role": role or "instant"}
             )
-            used_excel.add(raw)
+            used.add(raw)
 
-    unmapped = [str(c) for c in cols if str(c) not in used_excel and str(c) != timestamp_col]
-
+    unmapped = [str(c) for c in cols if str(c) not in used and str(c) != timestamp_col]
     return {
         "timestamp_col": timestamp_col,
         "mappings": mappings,
@@ -109,44 +253,31 @@ def detect_column_mapping(df: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def load_dataframe(path: Path) -> pd.DataFrame:
-    """Load xlsx/xls/csv into DataFrame."""
-    path = Path(path)
-    suffix = path.suffix.lower()
-    if suffix == ".xlsx":
-        return pd.read_excel(path, engine="openpyxl")
-    if suffix == ".xls":
-        return pd.read_excel(path, engine="xlrd")
-    if suffix == ".csv":
-        return pd.read_csv(path)
-    raise ValueError(f"Unsupported format: {suffix}")
-
-
 def apply_mapping(
     df: pd.DataFrame,
     timestamp_col: Optional[str],
-    mappings: list[dict[str, Any]],
-) -> tuple[pd.DataFrame, dict[str, Any]]:
-    """
-    Build a narrow table: timestamp + one column per (parameter, role).
-
-    Returns:
-        (result_df, summary dict).
-    """
-    out_cols: dict[str, list[Any]] = {}
+    mappings: List[Dict[str, Any]],
+) -> Tuple[pd.DataFrame, Dict[str, Any]]:
+    """Build narrow table from legacy mapping (unused in v3 pipeline)."""
+    canon_df, _ = build_canonical_numeric_df(df)
+    out_cols: Dict[str, List[Any]] = {}
     if timestamp_col and timestamp_col in df.columns:
         out_cols["timestamp"] = df[timestamp_col].astype(str).tolist()
 
-    param_roles: dict[str, set[str]] = {}
+    param_roles: Dict[str, Any] = {}
     for m in mappings:
         col = m["excel_col"]
         param = m["parameter"]
         role = m.get("value_role") or "instant"
-        if col not in df.columns:
-            logger.warning("Mapped column missing: %s", col)
+        src = col if col in df.columns else None
+        if src is None and param in canon_df.columns:
+            series = canon_df[param]
+        elif src and src in df.columns:
+            series = df[src]
+        else:
             continue
         key = f"{param}__{role}"
-        out_cols[key] = pd.to_numeric(df[col], errors="coerce").tolist()
+        out_cols[key] = pd.to_numeric(series, errors="coerce").tolist()
         param_roles.setdefault(param, set()).add(role)
 
     result = pd.DataFrame(out_cols)
@@ -158,6 +289,5 @@ def apply_mapping(
     return result, summary
 
 
-def preview_dataframe(df: pd.DataFrame, max_rows: int = 8) -> pd.DataFrame:
-    """First N rows for UI preview."""
+def preview_dataframe(df: pd.DataFrame, max_rows: int = 12) -> pd.DataFrame:
     return df.head(max_rows).copy()

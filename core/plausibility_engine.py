@@ -1,12 +1,13 @@
-"""Plausibility comparison: measured value vs limits."""
+"""Plausibility: value vs limits (v3 HIGH/LOW/OK/NO_DATA + legacy WARNING mode)."""
 
 from __future__ import annotations
 
 import logging
 import math
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.models import Status
+from core.puma_constants import COLUMN_ALIAS_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +19,7 @@ def check_plausibility(
     warning_pct: float,
 ) -> str:
     """
-    Classify a single value against limits.
-
-    Args:
-        value: Measured value; None or NaN yields NO_DATA.
-        lower: Lower limit.
-        upper: Upper limit.
-        warning_pct: Percentage of the valid range used as warning band
-            near each limit (when both limits exist).
+    Legacy single-value check with WARNING band.
 
     Returns:
         'OK', 'WARNING', 'FAIL', or 'NO_DATA'.
@@ -41,7 +35,6 @@ def check_plausibility(
     if upper is not None and value > upper:
         return Status.FAIL.value
 
-    # Both bounds: warning band inside the interval
     if lower is not None and upper is not None:
         range_span = upper - lower
         if range_span <= 0:
@@ -52,7 +45,6 @@ def check_plausibility(
             return Status.WARNING.value
         return Status.OK.value
 
-    # One-sided: warn when within warning_pct of the bound (relative to |bound|)
     ref = max(abs(lower if lower is not None else upper or 0.0), 1e-9)
     band = ref * (warning_pct / 100.0)
     if lower is not None and upper is None:
@@ -72,12 +64,6 @@ def deviation_percent(
     lower: Optional[float],
     upper: Optional[float],
 ) -> Optional[float]:
-    """
-    Distance to nearest limit as percentage of the interval (or bound magnitude).
-
-    Returns:
-        Non-negative percentage, or None if not computable.
-    """
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     if lower is None and upper is None:
@@ -121,14 +107,105 @@ def classify_with_limits(
     upper: Optional[float],
     warning_pct: float,
 ) -> Tuple[str, Optional[float]]:
-    """Return (status string, deviation_pct)."""
     status = check_plausibility(value, lower, upper, warning_pct)
     dev = deviation_percent(value, lower, upper)
     return status, dev
 
 
+def limits_display_str(lower: Optional[float], upper: Optional[float], unit: str) -> str:
+    u = (unit or "").strip()
+    if lower is None and upper is None:
+        return f"— — {u}".strip()
+    lo = "" if lower is None else f"{lower:g}"
+    hi = "" if upper is None else f"{upper:g}"
+    return f"{lo} – {hi} {u}".strip()
+
+
+def check_parameter(
+    values: List[float],
+    lower: Optional[float],
+    upper: Optional[float],
+) -> Dict[str, Any]:
+    """
+    v3: classify all runs against limits.
+
+    Status:
+        NO_DATA — no valid numeric values
+        OK — both limits None, or all values in band
+        HIGH — any value > upper (precedence over LOW)
+        LOW — any value < lower (and not HIGH)
+    """
+    valid = [float(v) for v in values if v is not None and not (isinstance(v, float) and math.isnan(v))]
+
+    if not valid:
+        return {
+            "min": None,
+            "max": None,
+            "avg": None,
+            "num_runs": 0,
+            "status": "NO_DATA",
+            "limits_str": "",
+        }
+
+    vmin = min(valid)
+    vmax = max(valid)
+    vavg = sum(valid) / len(valid)
+    n = len(valid)
+
+    if lower is None and upper is None:
+        return {
+            "min": vmin,
+            "max": vmax,
+            "avg": vavg,
+            "num_runs": n,
+            "status": "OK",
+            "limits_str": "",
+        }
+
+    any_high = upper is not None and any(v > upper for v in valid)
+    any_low = lower is not None and any(v < lower for v in valid)
+
+    if any_high:
+        st = "HIGH"
+    elif any_low:
+        st = "LOW"
+    else:
+        st = "OK"
+
+    return {
+        "min": vmin,
+        "max": vmax,
+        "avg": vavg,
+        "num_runs": n,
+        "status": st,
+        "limits_str": "",
+    }
+
+
+def resolve_data_column(param_name: str, canon_df_columns: Any) -> Optional[str]:
+    """Find column in canonical frame for limit parameter name."""
+    cols = list(canon_df_columns)
+    if param_name in cols:
+        return param_name
+    for raw, canon in COLUMN_ALIAS_MAP.items():
+        if canon == param_name and raw in cols:
+            return raw
+    return None
+
+
+def status_sort_rank_v3(status: str) -> int:
+    """Fail first: HIGH, LOW, NO_DATA, OK."""
+    order = {"HIGH": 0, "LOW": 1, "NO_DATA": 2, "OK": 3}
+    # legacy
+    order.setdefault("FAIL", 0)
+    order.setdefault("WARNING", 1)
+    return order.get(status, 99)
+
+
 def status_sort_rank(status: str) -> int:
-    """Sort order: FAIL, WARNING, OK, NO_DATA."""
+    """Legacy + v3."""
+    if status in ("HIGH", "LOW", "NO_DATA", "OK"):
+        return status_sort_rank_v3(status)
     order = {
         Status.FAIL.value: 0,
         Status.WARNING.value: 1,
