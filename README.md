@@ -40,6 +40,16 @@ PRÜF is a **desktop (Tk) app**. The dev container runs **Xvfb + Fluxbox + x11vn
 
    The integrated VS Code terminal also has `DISPLAY=:99`, so **`python3 main.py` in VS Code** can show the window **if** Xvfb is running (same display as noVNC).
 
+**If the UI looks “cut off” or has odd scrollbars**
+
+The remote desktop has a fixed pixel size. If it was smaller than the app window, the window was clipped. The dev container now uses a **1920×1080** virtual screen and sets **`PRUF_GEOMETRY=1280x720`** so the app fits better in the browser. After rebuild, you should see the full window.
+
+In noVNC, try **full screen** (toolbar) or open with scaling, e.g. append to the path:
+
+`vnc.html?autoconnect=true&resize=scale`
+
+(Exact query options depend on the noVNC version; the toolbar **Settings** may offer “Scaling”.)
+
 **Troubleshooting**
 
 ```bash

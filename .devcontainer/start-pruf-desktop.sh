@@ -15,8 +15,8 @@ pkill -f "[x]11vnc" 2>/dev/null || true
 pkill -f "[w]ebsockify" 2>/dev/null || true
 sleep 1
 
-# Virtual framebuffer
-Xvfb :99 -screen 0 1280x800x24 -ac +extension RENDER -noreset &
+# Virtual framebuffer — must be >= app geometry (1400x850) + window borders / taskbar
+Xvfb :99 -screen 0 1920x1080x24 -ac +extension RENDER -noreset &
 sleep 1
 
 # Minimal window manager (required for Tk placement)

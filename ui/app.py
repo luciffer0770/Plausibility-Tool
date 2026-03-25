@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -46,8 +47,14 @@ class PrufApp(ctk.CTk):
         super().__init__()
         ensure_theme_ready()
         self.title("PRÜF — Plausibility Check Tool")
-        self.geometry("1400x850")
-        self.minsize(1200, 700)
+        geo = os.environ.get("PRUF_GEOMETRY", "1400x850")
+        minsz = os.environ.get("PRUF_MINSIZE", "1200x700")
+        try:
+            w, h = minsz.lower().replace(" ", "").split("x", 1)
+            self.minsize(int(w), int(h))
+        except (ValueError, TypeError):
+            self.minsize(1200, 700)
+        self.geometry(geo)
 
         self.db = DatabaseManager()
         self.db.connect()

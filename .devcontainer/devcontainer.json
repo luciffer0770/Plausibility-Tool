@@ -5,7 +5,9 @@
     "context": ".."
   },
   "remoteEnv": {
-    "DISPLAY": ":99"
+    "DISPLAY": ":99",
+    "PRUF_GEOMETRY": "1280x720",
+    "PRUF_MINSIZE": "1024x600"
   },
   "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
   "postStartCommand": "nohup /usr/local/bin/start-pruf-desktop.sh </dev/null >>/tmp/pruf-desktop.log 2>&1 & sleep 3",
