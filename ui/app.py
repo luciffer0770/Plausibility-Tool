@@ -11,6 +11,7 @@ import customtkinter as ctk
 
 from core.models import Project
 from core.profile_manager import ensure_default_profile
+from core.user_settings import load_settings, save_settings
 from core.project_manager import list_projects_with_stats
 from database.db_manager import DatabaseManager
 from ui.components.header_bar import HeaderBar
@@ -66,6 +67,7 @@ class PlausibilityApp(ctk.CTk):
 
         self.current_project: Optional[Project] = None
         self.current_session_id: Optional[int] = None
+        self._settings = load_settings()
 
         self._pages: Dict[str, ctk.CTkFrame] = {}
         self._content: Optional[ctk.CTkFrame] = None
@@ -119,14 +121,40 @@ class PlausibilityApp(ctk.CTk):
         foot.pack(fill="x", side="bottom")
         sep = ctk.CTkFrame(foot, height=1, fg_color=BOSCH_MID_GRAY)
         sep.pack(fill="x", side="top")
+        legend = (
+            "Bosch Plausibility Check Tool v1.0  |  "
+            "Status: OK = within limits · HIGH / LOW = out of range · NO_DATA = missing  |  "
+            "Bosch Engineering  |  Documentation  ·  Support"
+        )
         ctk.CTkLabel(
             foot,
-            text="Bosch Plausibility Check Tool v1.0  |  Bosch Engineering  |  Documentation  ·  Support",
+            text=legend,
             font=font_small(),
             text_color=BOSCH_STEEL,
         ).pack(side="left", padx=GRID * 2, pady=4)
 
         self.show_page("projects_tab")
+        self._restore_last_session()
+
+    def _restore_last_session(self) -> None:
+        pid = self._settings.get("last_project_id")
+        if pid is None:
+            return
+        try:
+            pid_int = int(pid)
+        except (TypeError, ValueError):
+            return
+        proj = self.db.get_project(pid_int)
+        if not proj:
+            return
+        ensure_default_profile(self.db, proj.engine_type_key())
+        self.current_project = proj
+        self.current_session_id = None
+        last = self.db.list_upload_sessions(pid_int, limit=1)
+        if last:
+            self.current_session_id = last[0]["id"]
+        if self._header:
+            self._header.set_project_text(f"ACTIVE: {proj.name}")
 
     def _on_tab(self, key: str) -> None:
         page = _TAB_MAP.get(key, "projects_tab")
@@ -151,6 +179,8 @@ class PlausibilityApp(ctk.CTk):
             self._header.set_project_text(f"ACTIVE: {proj.name}")
         if self._tab_bar:
             self._tab_bar.set_active("projects")
+        if proj.id is not None:
+            save_settings({"last_project_id": proj.id})
         self.show_page("projects_tab")
 
     def show_page(self, page_name: str) -> None:

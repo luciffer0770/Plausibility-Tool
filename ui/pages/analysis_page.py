@@ -1,8 +1,10 @@
-"""RESULTS tab: summary, ttk results table, collapsible analytics."""
+"""RESULTS tab: summary, ttk table, filters, session note, export/copy."""
 
 from __future__ import annotations
 
 import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog, messagebox
 from typing import Any, Optional
 
 import customtkinter as ctk
@@ -10,6 +12,8 @@ from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
 
 from core.analysis_service import measurements_to_summary_counts, sort_measurement_results
+from core.results_export import export_measurements_excel
+from core.user_settings import load_settings, save_settings
 from database.db_manager import DatabaseManager
 from ui.components.filter_bar import FilterBar
 from ui.components.results_treeview import ResultsTreeview
@@ -29,19 +33,45 @@ from ui.theme import (
 
 
 class AnalysisPage(BasePage):
-    """Plausibility results — fast Treeview + optional chart strip."""
+    """Plausibility results."""
 
     def __init__(self, parent: ctk.CTkFrame, controller: Any) -> None:
         super().__init__(parent, controller)
         self._all_rows: list[dict[str, Any]] = []
+        self._last_selected: Optional[dict[str, Any]] = None
         self._mpl_canvas: Any = None
         self._charts_expanded = ctk.BooleanVar(value=True)
+        self._empty_frame: Optional[ctk.CTkFrame] = None
+        self._content_frame: Optional[ctk.CTkFrame] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
 
-        cards = ctk.CTkFrame(self, fg_color="transparent")
+        self.session_banner = ctk.CTkLabel(
+            self,
+            text="",
+            font=font_small(),
+            text_color="#333333",
+            anchor="w",
+        )
+        self.session_banner.pack(fill="x", padx=GRID, pady=(GRID, 0))
+
+        self.compare_label = ctk.CTkLabel(
+            self,
+            text="",
+            font=font_small(),
+            text_color="#666666",
+            anchor="w",
+        )
+        self.compare_label.pack(fill="x", padx=GRID, pady=(2, 0))
+
+        self._empty_frame = ctk.CTkFrame(self, fg_color=BOSCH_LIGHT_GRAY)
+        self._build_empty_state(self._empty_frame)
+
+        self._content_frame = ctk.CTkFrame(self, fg_color=BOSCH_LIGHT_GRAY)
+
+        cards = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         cards.pack(fill="x", padx=GRID, pady=GRID)
 
         self.card_total = self._mk_card(cards, "TOTAL CHECKED", "0", "#E8E8E8")
@@ -49,24 +79,50 @@ class AnalysisPage(BasePage):
         self.card_high = self._mk_card(cards, "ABOVE", "0", "#FDE8E8")
         self.card_low = self._mk_card(cards, "BELOW LOW", "0", "#FDE8E8")
 
-        bar = ctk.CTkFrame(self, fg_color=BOSCH_LIGHT_GRAY)
+        bar = ctk.CTkFrame(self._content_frame, fg_color=BOSCH_LIGHT_GRAY)
         bar.pack(fill="x", padx=GRID, pady=(0, GRID))
         self.filter_bar = FilterBar(bar, self._on_filter)
         self.filter_bar.pack(side="left", fill="x", expand=True)
         ctk.CTkButton(
             bar,
             text="EXPORT EXCEL REPORT",
-            width=180,
-            height=34,
+            width=190,
+            height=40,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
             font=font_body(),
             command=lambda: self.controller.show_page("reports"),
-        ).pack(side="right", padx=8)
+        ).pack(side="right", padx=4)
+        ctk.CTkButton(
+            bar,
+            text="Export failed rows",
+            width=150,
+            height=40,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color="#333333",
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            font=font_body(),
+            command=self._export_failed,
+        ).pack(side="right", padx=4)
+        ctk.CTkButton(
+            bar,
+            text="Copy row",
+            width=100,
+            height=40,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color="#333333",
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            font=font_body(),
+            command=self._copy_selected_row,
+        ).pack(side="right", padx=4)
 
         main_card = ctk.CTkFrame(
-            self,
+            self._content_frame,
             fg_color=BOSCH_WHITE,
             corner_radius=8,
             border_width=1,
@@ -86,7 +142,7 @@ class AnalysisPage(BasePage):
         self.detail = ParameterDetailPanel(split)
         self.detail.pack(side="right", fill="y")
 
-        self._charts_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._charts_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         self._charts_frame.pack(fill="x", padx=GRID, pady=(0, GRID))
 
         toggle_row = ctk.CTkFrame(self._charts_frame, fg_color="transparent")
@@ -124,6 +180,43 @@ class AnalysisPage(BasePage):
 
         self._charts_inner.pack(fill="x", pady=0)
 
+        self._apply_results_visibility(False)
+
+    def _build_empty_state(self, parent: ctk.CTkFrame) -> None:
+        box = ctk.CTkFrame(parent, fg_color=BOSCH_WHITE, corner_radius=8, border_width=1, border_color=BOSCH_MID_GRAY)
+        box.pack(fill="both", expand=True, padx=GRID, pady=GRID)
+        ctk.CTkLabel(
+            box,
+            text="No results yet",
+            font=font_body(),
+            text_color="#333333",
+        ).pack(pady=(GRID * 2, 8))
+        ctk.CTkLabel(
+            box,
+            text="Run a plausibility check from Upload & Evaluate to see results here.",
+            font=font_small(),
+            text_color="#666666",
+        ).pack(pady=(0, GRID))
+        ctk.CTkButton(
+            box,
+            text="Go to UPLOAD & EVALUATE",
+            width=220,
+            height=40,
+            fg_color=BOSCH_RED,
+            font=font_body(),
+            command=lambda: self.controller.show_page("upload"),
+        ).pack(pady=GRID)
+
+    def _apply_results_visibility(self, has_session: bool) -> None:
+        if self._empty_frame is None or self._content_frame is None:
+            return
+        if has_session:
+            self._empty_frame.pack_forget()
+            self._content_frame.pack(fill="both", expand=True)
+        else:
+            self._content_frame.pack_forget()
+            self._empty_frame.pack(fill="both", expand=True)
+
     def _toggle_charts(self) -> None:
         if self._charts_expanded.get():
             self._charts_inner.pack(fill="x", pady=0)
@@ -150,14 +243,15 @@ class AnalysisPage(BasePage):
         return lbl
 
     def on_show(self) -> None:
+        s = load_settings()
+        self.filter_bar.apply_saved(s)
         self._reload()
 
     def _reload(self) -> None:
         proj = self.controller.current_project
         if proj is None or proj.id is None:
             self._all_rows = []
-            self.table.set_rows([])
-            self._set_cards(0, 0, 0, 0)
+            self._apply_results_visibility(False)
             return
 
         sid = self.controller.current_session_id
@@ -169,9 +263,42 @@ class AnalysisPage(BasePage):
                 sid = sessions[0]["id"]
         if sid is None:
             self._all_rows = []
-            self.table.set_rows([])
-            self._set_cards(0, 0, 0, 0)
+            self._apply_results_visibility(False)
+            self.session_banner.configure(text="")
+            self.compare_label.configure(text="")
             return
+
+        self._apply_results_visibility(True)
+        sess = db.get_upload_session(sid)
+        if sess:
+            note = (sess.get("session_note") or "").strip()
+            fn = sess.get("file_name", "")
+            self.session_banner.configure(
+                text=f"Session #{sid}  ·  {fn}" + (f"  ·  Note: {note}" if note else "")
+            )
+            prev_list = db.list_upload_sessions(proj.id, limit=10)
+            prev = None
+            for srow in prev_list:
+                if srow["id"] != sid:
+                    prev = srow
+                    break
+            if prev:
+                pc = measurements_to_summary_counts(
+                    db.get_measurements_for_session(int(prev["id"]))
+                )
+                cc = measurements_to_summary_counts(db.get_measurements_for_session(sid))
+                self.compare_label.configure(
+                    text=(
+                        f"vs previous run ({prev.get('file_name', '')}): "
+                        f"OK {pc.get('OK', 0)}→{cc.get('OK', 0)}  "
+                        f"HIGH {pc.get('HIGH', 0)}→{cc.get('HIGH', 0)}  "
+                        f"LOW {pc.get('LOW', 0)}→{cc.get('LOW', 0)}"
+                    )
+                )
+            else:
+                self.compare_label.configure(text="")
+        else:
+            self.session_banner.configure(text="")
 
         rows = db.get_measurements_for_session(sid)
         self._all_rows = sort_measurement_results(rows)
@@ -185,6 +312,7 @@ class AnalysisPage(BasePage):
         self.card_low.configure(text=str(low), text_color=STATUS_FAIL if low else "#333333")
 
     def _on_filter(self, show: str, ptype: str) -> None:
+        save_settings(self.filter_bar.snapshot())
         self._apply_filters(show, ptype)
 
     def _apply_filters(self, show: Optional[str] = None, ptype: Optional[str] = None) -> None:
@@ -219,6 +347,43 @@ class AnalysisPage(BasePage):
             c.get("LOW", 0),
         )
 
+    def _export_failed(self) -> None:
+        failed = [
+            r
+            for r in self._all_rows
+            if str(r.get("status", "")) in ("HIGH", "LOW", "FAIL")
+        ]
+        if not failed:
+            messagebox.showinfo("Bosch Plausibility Check", "No failed rows in this session.")
+            return
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+            initialfile="failed_parameters.xlsx",
+        )
+        if not path:
+            return
+        try:
+            export_measurements_excel(Path(path), failed, title="Failed")
+            messagebox.showinfo("Bosch Plausibility Check", f"Saved:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Bosch Plausibility Check", str(e))
+
+    def _copy_selected_row(self) -> None:
+        m = self._last_selected
+        if not m:
+            messagebox.showinfo("Bosch Plausibility Check", "Click a row in the table first.")
+            return
+        line = (
+            f"{m.get('parameter_name')}\t"
+            f"min={m.get('value_min')}\tmax={m.get('value_max')}\tavg={m.get('value_avg')}\t"
+            f"status={m.get('status')}"
+        )
+        root = self.winfo_toplevel()
+        root.clipboard_clear()
+        root.clipboard_append(line)
+        root.update()
+
     def _update_charts(self) -> None:
         by_cat: dict[str, int] = {}
         for r in self._all_rows:
@@ -252,4 +417,5 @@ class AnalysisPage(BasePage):
             self.top_fail_box.insert("end", f"{name}:  {cnt}\n")
 
     def _on_row(self, m: dict[str, Any]) -> None:
+        self._last_selected = m
         self.detail.show_measurement(m)

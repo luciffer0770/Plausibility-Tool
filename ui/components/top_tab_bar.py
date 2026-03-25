@@ -32,8 +32,8 @@ class TopTabBar(ctk.CTkFrame):
             btn = ctk.CTkButton(
                 inner,
                 text=label,
-                width=140,
-                height=36,
+                width=148,
+                height=42,
                 corner_radius=4,
                 font=font_body(),
                 fg_color=BOSCH_WHITE,

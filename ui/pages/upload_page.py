@@ -17,6 +17,7 @@ from core.data_loader import (
     load_puma_file,
     preview_parameters_by_zeit,
 )
+from core.user_settings import load_settings, save_settings
 from ui.components.file_drop_zone import FileDropZone
 from ui.pages.base_page import BasePage
 from ui.theme import BOSCH_DARK_GRAY, BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, BOSCH_RED, BOSCH_WHITE, GRID, font_body, font_small
@@ -33,6 +34,7 @@ class UploadPage(BasePage):
         self._df_raw: Optional[pd.DataFrame] = None
         self._mapping: dict[str, Any] = {}
         self._meta: dict[str, Any] = {}
+        self._busy = False
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -49,7 +51,7 @@ class UploadPage(BasePage):
         )
         ctk.CTkLabel(
             left,
-            text="Supported: .xlsx, .xls (TSV), .csv",
+            text="Supported: .xlsx, .xls (TSV), .csv  ·  Press Enter in the session note field to run check",
             font=font_small(),
             text_color=BOSCH_DARK_GRAY,
         ).pack(anchor="w", pady=(0, GRID))
@@ -57,10 +59,28 @@ class UploadPage(BasePage):
         self.drop = FileDropZone(left, self._on_file)
         self.drop.pack(fill="x", pady=(0, GRID))
 
+        note_row = ctk.CTkFrame(left, fg_color="transparent")
+        note_row.pack(fill="x", pady=(0, GRID))
+        ctk.CTkLabel(note_row, text="Session note (optional):", font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w"
+        )
+        self.note_var = ctk.StringVar()
+        self.note_entry = ctk.CTkEntry(
+            note_row,
+            textvariable=self.note_var,
+            placeholder_text="e.g. Cold start, Map 2",
+            font=font_small(),
+            height=32,
+        )
+        self.note_entry.pack(fill="x", pady=(4, 0))
+        self.note_entry.bind("<Return>", self._on_enter_run)
+
+        btn_row = ctk.CTkFrame(left, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(0, GRID))
         self.run_btn = ctk.CTkButton(
-            left,
+            btn_row,
             text="▶ RUN PLAUSIBILITY CHECK",
-            height=40,
+            height=44,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
@@ -68,7 +88,22 @@ class UploadPage(BasePage):
             command=self._run_analysis,
             state="disabled",
         )
-        self.run_btn.pack(fill="x")
+        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.rerun_btn = ctk.CTkButton(
+            btn_row,
+            text="Re-run last file",
+            width=160,
+            height=44,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            font=font_body(),
+            command=self._rerun_last,
+            state="disabled",
+        )
+        self.rerun_btn.pack(side="right")
 
         right = ctk.CTkFrame(
             top,
@@ -127,6 +162,28 @@ class UploadPage(BasePage):
         self._preview_host.grid_rowconfigure(0, weight=1)
         self._preview_host.grid_columnconfigure(0, weight=1)
 
+    def _on_enter_run(self, _event: object) -> str:
+        if not self._busy and str(self.run_btn.cget("state")) == "normal":
+            self._run_analysis()
+        return "break"
+
+    def on_show(self) -> None:
+        s = load_settings()
+        lp = s.get("last_puma_path") or ""
+        if lp and Path(lp).is_file() and self._path is None:
+            self._on_file(Path(lp))
+
+    def _set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        st = "disabled" if busy else "normal"
+        if self._path and self._df_raw is not None and not busy:
+            self.run_btn.configure(state="normal", text="▶ RUN PLAUSIBILITY CHECK")
+        elif busy:
+            self.run_btn.configure(state="disabled", text="Working…")
+        else:
+            self.run_btn.configure(state="disabled", text="▶ RUN PLAUSIBILITY CHECK")
+        self.rerun_btn.configure(state="disabled" if busy else ("normal" if self._path else "disabled"))
+
     def _on_file(self, path: Path) -> None:
         self._path = path
         try:
@@ -145,7 +202,11 @@ class UploadPage(BasePage):
             messagebox.showerror("Bosch Plausibility Check", f"Could not load file:\n{e}")
             self._df_raw = None
             self.run_btn.configure(state="disabled")
+            self.rerun_btn.configure(state="disabled")
             return
+
+        save_settings({"last_puma_path": str(path.resolve())})
+        self.rerun_btn.configure(state="normal")
 
         rpm = self._meta.get("rpm_sample", "—")
         pcount = self._meta.get("parameter_column_count", len(df.columns))
@@ -182,9 +243,21 @@ class UploadPage(BasePage):
         else:
             self.preview.insert("1.0", prev_df.to_string(max_cols=24))
 
-        self.run_btn.configure(state="normal")
+        if not self._busy:
+            self.run_btn.configure(state="normal", text="▶ RUN PLAUSIBILITY CHECK")
+
+    def _rerun_last(self) -> None:
+        s = load_settings()
+        lp = s.get("last_puma_path") or ""
+        if not lp or not Path(lp).is_file():
+            messagebox.showinfo("Bosch Plausibility Check", "No saved file path. Browse for a file first.")
+            return
+        self._on_file(Path(lp))
+        self._run_analysis()
 
     def _run_analysis(self) -> None:
+        if self._busy:
+            return
         if not self._path:
             messagebox.showwarning("Bosch Plausibility Check", "Select a file first.")
             return
@@ -195,6 +268,8 @@ class UploadPage(BasePage):
         if not proj or proj.id is None:
             messagebox.showwarning("Bosch Plausibility Check", "Select or create a project on the PROJECTS tab first.")
             return
+        self._set_busy(True)
+        self.update_idletasks()
         try:
             from core.analysis_service import run_plausibility_for_file
 
@@ -206,6 +281,7 @@ class UploadPage(BasePage):
                 self._mapping.get("timestamp_col"),
                 None,
                 file_name=self._path.name,
+                session_note=self.note_var.get().strip() or None,
             )
             self.controller.set_current_session(sid)
             messagebox.showinfo("Bosch Plausibility Check", f"Analysis complete. Session id {sid}.")
@@ -213,3 +289,5 @@ class UploadPage(BasePage):
         except Exception as e:
             logger.exception("Analysis failed")
             messagebox.showerror("Bosch Plausibility Check", str(e))
+        finally:
+            self._set_busy(False)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Any, Callable, Dict
 
 import customtkinter as ctk
 
@@ -73,3 +73,22 @@ class FilterBar(ctk.CTkFrame):
 
     def get_search(self) -> str:
         return self.search_var.get().strip().lower()
+
+    def apply_saved(self, d: Dict[str, Any]) -> None:
+        show = d.get("results_show", "All")
+        ptype = d.get("results_type", "All")
+        search = d.get("results_search", "")
+        if show in ("All", "Failed only", "Passed only"):
+            self.show_var.set(show)
+        if ptype:
+            vals = list(self.ptype.cget("values"))
+            if ptype in vals:
+                self.type_var.set(ptype)
+        self.search_var.set(str(search or ""))
+
+    def snapshot(self) -> Dict[str, str]:
+        return {
+            "results_show": self.show_var.get(),
+            "results_type": self.type_var.get(),
+            "results_search": self.search_var.get(),
+        }

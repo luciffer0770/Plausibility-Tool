@@ -11,6 +11,7 @@ from typing import Any, List, Optional
 import customtkinter as ctk
 
 from core.models import EngineType, LimitDefinition, ParameterType
+from core.limits_template_export import write_limits_template_excel
 from core.profile_manager import (
     export_profile_json,
     import_parameters_from_excel,
@@ -58,6 +59,8 @@ class ProfileEditorPage(BasePage):
         self.cat_filter = ctk.StringVar(value="All")
         self._tree: Optional[ttk.Treeview] = None
         self._tk_wrap: Optional[tk.Frame] = None
+        self._limits_dirty: bool = False
+        self._save_status: Optional[ctk.CTkLabel] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -87,17 +90,21 @@ class ProfileEditorPage(BasePage):
             font=font_body(),
         ).pack(side="left", padx=4)
 
+        save_row = ctk.CTkFrame(bar, fg_color="transparent")
+        save_row.pack(side="right", padx=8)
         ctk.CTkButton(
-            bar,
+            save_row,
             text="SAVE ALL LIMITS",
-            width=160,
-            height=36,
+            width=170,
+            height=40,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
             font=font_body(),
             command=self._save,
-        ).pack(side="right", padx=8)
+        ).pack(side="left", padx=(0, 8))
+        self._save_status = ctk.CTkLabel(save_row, text="", font=font_small(), text_color=BOSCH_RED)
+        self._save_status.pack(side="left")
 
         tools = ctk.CTkFrame(self, fg_color="transparent")
         tools.pack(fill="x", padx=GRID, pady=(0, GRID))
@@ -105,10 +112,11 @@ class ProfileEditorPage(BasePage):
             ("Export JSON", self._export_json),
             ("Import JSON", self._import_json),
             ("Import Excel", self._import_excel),
+            ("Export empty template", self._export_template),
             ("Clone from…", self._clone_dialog),
             ("+ Add row", self._add_blank_row),
         ):
-            ctk.CTkButton(tools, text=txt, width=110, height=30, corner_radius=4, command=cmd, font=font_small()).pack(
+            ctk.CTkButton(tools, text=txt, width=118, height=34, corner_radius=4, command=cmd, font=font_small()).pack(
                 side="left", padx=4
             )
 
@@ -216,6 +224,22 @@ class ProfileEditorPage(BasePage):
             w.pack(anchor="w", padx=GRID, pady=(0, 6))
         self._en_cb.pack(anchor="w", padx=GRID, pady=6)
 
+        def _dirty_hook(_e: object = None) -> None:
+            self._mark_limits_dirty()
+
+        for w in (
+            self._e_label,
+            self._e_desc,
+            self._e_cat,
+            self._e_lo,
+            self._e_hi,
+            self._e_unit,
+            self._e_rc,
+        ):
+            w.bind("<KeyRelease>", _dirty_hook)
+        self._e_type.configure(command=lambda _v: self._mark_limits_dirty())
+        self._en_cb.configure(command=self._mark_limits_dirty)
+
         ctk.CTkButton(
             right_card,
             text="Apply to row",
@@ -233,6 +257,16 @@ class ProfileEditorPage(BasePage):
             text_color=BOSCH_MID_GRAY,
             wraplength=280,
         ).pack(anchor="w", padx=GRID, pady=(0, GRID))
+
+    def _mark_limits_dirty(self) -> None:
+        self._limits_dirty = True
+        if self._save_status:
+            self._save_status.configure(text="• Unsaved changes")
+
+    def _mark_limits_clean(self) -> None:
+        self._limits_dirty = False
+        if self._save_status:
+            self._save_status.configure(text="")
 
     def _passes_filter(self, d: LimitDefinition) -> bool:
         cat = self.cat_filter.get()
@@ -303,6 +337,7 @@ class ProfileEditorPage(BasePage):
             return
         if 0 <= idx < len(self._all_defs):
             self._all_defs[idx].is_enabled = not self._all_defs[idx].is_enabled
+            self._mark_limits_dirty()
             self._rebuild_tree_only()
             self._tree.selection_set(str(idx))
             self._load_detail(self._all_defs[idx])
@@ -354,6 +389,7 @@ class ProfileEditorPage(BasePage):
             messagebox.showinfo("Bosch Plausibility Check", "Select a row in the table first.")
             return
         self._flush_detail_to_selection()
+        self._mark_limits_dirty()
         self._rebuild_tree_only()
         if self._tree and self._selected_index is not None:
             iid = str(self._selected_index)
@@ -384,6 +420,7 @@ class ProfileEditorPage(BasePage):
         db: DatabaseManager = self.controller.db
         self._all_defs = db.get_limit_profile(self._engine_type_value())
         self._selected_index = None
+        self._mark_limits_clean()
         self._rebuild_tree_only()
 
     def _collect_definitions(self) -> List[LimitDefinition]:
@@ -396,6 +433,19 @@ class ProfileEditorPage(BasePage):
             if not d.parameter_name or d.parameter_name.startswith("__new__"):
                 messagebox.showwarning("Bosch Plausibility Check", "Every row needs a parameter label (use Edit panel).")
                 return []
+            if not d.parameter_name.strip():
+                messagebox.showwarning(
+                    "Bosch Plausibility Check",
+                    "Empty parameter label is not allowed. Use the edit panel to set a name.",
+                )
+                return []
+            lo, hi = d.lower_limit, d.upper_limit
+            if lo is not None and hi is not None and lo > hi:
+                messagebox.showwarning(
+                    "Bosch Plausibility Check",
+                    f'Lower limit > upper limit for "{d.parameter_name}". Fix before saving.',
+                )
+                return []
         return list(self._all_defs)
 
     def _save(self) -> None:
@@ -404,6 +454,7 @@ class ProfileEditorPage(BasePage):
             return
         self.controller.db.replace_limit_profile(self._engine_type_value(), defs)
         self._all_defs = defs
+        self._mark_limits_clean()
         messagebox.showinfo("Bosch Plausibility Check", "All limits saved.")
         self._rebuild_tree_only()
         logger.info("Saved profile %s (%s rows)", self._engine_type_value(), len(defs))
@@ -415,6 +466,20 @@ class ProfileEditorPage(BasePage):
         path = filedialog.asksaveasfilename(defaultextension=".json", filetypes=[("JSON", "*.json")])
         if path:
             Path(path).write_text(export_profile_json(defs), encoding="utf-8")
+
+    def _export_template(self) -> None:
+        path = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+            initialfile="limits_template.xlsx",
+        )
+        if not path:
+            return
+        try:
+            write_limits_template_excel(Path(path))
+            messagebox.showinfo("Bosch Plausibility Check", f"Template saved:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Bosch Plausibility Check", str(e))
 
     def _import_json(self) -> None:
         path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
@@ -479,6 +544,7 @@ class ProfileEditorPage(BasePage):
             is_enabled=True,
         )
         self._all_defs.append(blank)
+        self._mark_limits_dirty()
         new_i = len(self._all_defs) - 1
         if not self._passes_filter(blank):
             self.cat_filter.set("All")
