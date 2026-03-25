@@ -33,7 +33,8 @@ class AnalysisPage(BasePage):
     def __init__(self, parent: ctk.CTkFrame, controller: Any) -> None:
         super().__init__(parent, controller)
         self._all_rows: list[dict[str, Any]] = []
-        self._canvas: Any = None
+        # Do not use name _canvas — CTkFrame reserves it for internal drawing.
+        self._mpl_canvas: Any = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -86,8 +87,8 @@ class AnalysisPage(BasePage):
         ctk.CTkLabel(left, text="Failure distribution by type", font=font_body()).pack(anchor="w")
         self.fig = Figure(figsize=(4, 2.2), dpi=100)
         self.ax = self.fig.add_subplot(111)
-        self._canvas = FigureCanvasTkAgg(self.fig, master=left)
-        self._canvas.get_tk_widget().pack(fill="both", expand=True)
+        self._mpl_canvas = FigureCanvasTkAgg(self.fig, master=left)
+        self._mpl_canvas.get_tk_widget().pack(fill="both", expand=True)
 
         right = ctk.CTkFrame(charts, fg_color=BOSCH_WHITE, width=260)
         right.pack(side="right", fill="y", padx=GRID, pady=GRID)
@@ -206,8 +207,8 @@ class AnalysisPage(BasePage):
         else:
             self.ax.text(0.5, 0.5, "No failures", ha="center", va="center")
         self.fig.tight_layout()
-        if self._canvas:
-            self._canvas.draw()
+        if self._mpl_canvas:
+            self._mpl_canvas.draw()
 
         agg: dict[str, int] = {}
         for r in self._all_rows:
