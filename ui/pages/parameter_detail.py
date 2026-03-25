@@ -34,8 +34,10 @@ class ParameterDetailPanel(ctk.CTkFrame):
         name = m.get("parameter_name", "")
         self.title.configure(text=name)
         vs = m.get("values_sample")
+        zt = str(m.get("timestamp") or "").strip()
         lines = [
             f"Status: {m.get('status')}",
+            f"ZEIT when out of range: {zt or '—'}",
             f"Value: {m.get('measured_value')}",
             f"Min / Max / Avg: {m.get('value_min')} / {m.get('value_max')} / {m.get('value_avg')}",
             f"Values (all runs): {vs or '—'}",

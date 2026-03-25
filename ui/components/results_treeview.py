@@ -60,6 +60,7 @@ class ResultsTreeview(ttk.Frame):
             "vmin",
             "vmax",
             "vavg",
+            "zeit_viol",
             "vsample",
             "limits",
             "status",
@@ -75,17 +76,18 @@ class ResultsTreeview(ttk.Frame):
         )
         headings = {
             "parameter": ("Parameter", 82),
-            "description": ("Description", 150),
-            "category": ("Category", 88),
-            "ptype": ("Type", 52),
+            "description": ("Description", 140),
+            "category": ("Category", 80),
+            "ptype": ("Type", 48),
             "runs": ("Runs", 34),
-            "vmin": ("Min", 50),
-            "vmax": ("Max", 50),
-            "vavg": ("Avg", 50),
-            "vsample": ("Values (sample)", 130),
-            "limits": ("Limits", 100),
-            "status": ("Status", 48),
-            "root": ("Root cause", 180),
+            "vmin": ("Min", 48),
+            "vmax": ("Max", 48),
+            "vavg": ("Avg", 48),
+            "zeit_viol": ("ZEIT (out of range)", 140),
+            "vsample": ("Values (sample)", 110),
+            "limits": ("Limits", 92),
+            "status": ("Status", 44),
+            "root": ("Root cause", 160),
         }
         for c, (text, w) in headings.items():
             self.tree.heading(c, text=text, anchor="w")
@@ -148,6 +150,11 @@ class ResultsTreeview(ttk.Frame):
                 vshort = vs[:52] + "…"
             else:
                 vshort = vs
+            zv = str(m.get("timestamp") or "").strip()
+            if not zv:
+                zv = "—"
+            elif len(zv) > 48:
+                zv = zv[:45] + "…"
             root = str(m.get("root_cause") or "")
             if len(root) > 70:
                 root = root[:67] + "…"
@@ -165,6 +172,7 @@ class ResultsTreeview(ttk.Frame):
                     fmt(m.get("value_min")),
                     fmt(m.get("value_max")),
                     fmt(m.get("value_avg")),
+                    zv,
                     vshort,
                     lims[:40],
                     st,

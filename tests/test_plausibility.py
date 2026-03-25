@@ -43,6 +43,16 @@ class TestPlausibility(unittest.TestCase):
         r2 = check_parameter([1.0, 2.0], 1.5, 10.0)
         self.assertEqual(r2["status"], "LOW")
 
+    def test_check_parameter_violation_zeit(self) -> None:
+        r = check_parameter(
+            [1.0, 3.0, 2.0],
+            0.0,
+            2.5,
+            zeit_labels=["09:00:00", "09:01:00", "09:02:00"],
+        )
+        self.assertEqual(r["status"], "HIGH")
+        self.assertIn("09:01:00", r.get("violation_zeit", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

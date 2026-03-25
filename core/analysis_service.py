@@ -55,11 +55,18 @@ def run_plausibility_for_file(
     """
     Parse PUMA file, run limits on all data rows per parameter, persist session.
 
+    For each **enabled** limit with a matching column: every numeric row is checked;
+    HIGH if any value > upper, LOW if any < lower (HIGH wins if both), OK if in band,
+    NO_DATA if column missing or no numbers. Optional ZEIT column aligns row index with
+    violation timestamps stored in `measurements.timestamp`.
+
     `mappings` is ignored in v3 (kept for API compatibility).
     """
     path = Path(file_path)
     df_raw, meta = load_puma_file(path)
     canon_df, _ = build_canonical_numeric_df(df_raw)
+
+    zeit_series = df_raw["ZEIT"] if "ZEIT" in df_raw.columns else None
 
     defs = db.get_limit_profile(engine_type_value)
     defs_by_name = {d.parameter_name: d for d in defs}
@@ -90,13 +97,20 @@ def run_plausibility_for_file(
         else:
             series = canon_df[col]
             vals = []
-            for v in series:
+            zeit_labels: List[str] = []
+            for i in range(len(series)):
+                v = series.iloc[i]
                 if pd.notna(v):
                     try:
                         vals.append(float(v))
+                        if zeit_series is not None and i < len(zeit_series):
+                            z = zeit_series.iloc[i]
+                            zeit_labels.append(str(z).strip() if pd.notna(z) else "")
+                        else:
+                            zeit_labels.append("")
                     except (TypeError, ValueError):
                         pass
-            chk = check_parameter(vals, d.lower_limit, d.upper_limit)
+            chk = check_parameter(vals, d.lower_limit, d.upper_limit, zeit_labels=zeit_labels or None)
             st = chk["status"]
             chk["limits_str"] = limits_display_str(d.lower_limit, d.upper_limit, unit)
 
@@ -114,6 +128,7 @@ def run_plausibility_for_file(
         vavg = chk.get("avg")
         nruns = chk.get("num_runs") or 0
         vsample = _format_values_sample(vals)
+        viol_zeit = str(chk.get("violation_zeit") or "").strip() or None
 
         results.append(
             (
@@ -129,7 +144,7 @@ def run_plausibility_for_file(
                 vmax,
                 vavg,
                 "aggregate",
-                None,
+                viol_zeit,
                 st,
                 None,
                 d.lower_limit,

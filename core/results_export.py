@@ -25,6 +25,7 @@ def export_measurements_excel(path: Path, rows: List[dict[str, Any]], title: str
         "Min",
         "Max",
         "Avg",
+        "ZEIT (out of range)",
         "Limits",
         "Status",
         "Root cause",
@@ -54,9 +55,10 @@ def export_measurements_excel(path: Path, rows: List[dict[str, Any]], title: str
         ws.cell(row=ri, column=6, value=fmt(m.get("value_min")))
         ws.cell(row=ri, column=7, value=fmt(m.get("value_max")))
         ws.cell(row=ri, column=8, value=fmt(m.get("value_avg")))
-        ws.cell(row=ri, column=9, value=lims)
-        ws.cell(row=ri, column=10, value=m.get("status"))
-        ws.cell(row=ri, column=11, value=m.get("root_cause") or "")
+        ws.cell(row=ri, column=9, value=str(m.get("timestamp") or ""))
+        ws.cell(row=ri, column=10, value=lims)
+        ws.cell(row=ri, column=11, value=m.get("status"))
+        ws.cell(row=ri, column=12, value=m.get("root_cause") or "")
 
     ws.freeze_panes = "A2"
     path.parent.mkdir(parents=True, exist_ok=True)

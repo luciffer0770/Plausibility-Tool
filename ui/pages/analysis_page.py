@@ -26,8 +26,6 @@ from ui.theme import (
     BOSCH_RED,
     BOSCH_WHITE,
     GRID,
-    STATUS_FAIL,
-    STATUS_OK,
     font_body,
     font_small,
 )
@@ -75,10 +73,10 @@ class AnalysisPage(BasePage):
         cards = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         cards.pack(fill="x", padx=GRID, pady=GRID)
 
-        self.card_total = self._mk_card(cards, "TOTAL CHECKED", "0", "#BDBDBD")
-        self.card_pass = self._mk_card(cards, "PASSED", "0", "#C8E6C9")
-        self.card_high = self._mk_card(cards, "ABOVE LIMIT", "0", "#FFCDD2")
-        self.card_low = self._mk_card(cards, "BELOW LIMIT", "0", "#FFCDD2")
+        self.card_total = self._mk_card(cards, "TOTAL CHECKED", "0", "#EEEEEE", "#333333")
+        self.card_pass = self._mk_card(cards, "WITHIN LIMITS", "0", "#E8F5E9", "#1B5E20")
+        self.card_high = self._mk_card(cards, "ABOVE UPPER", "0", "#FFEBEE", "#C62828")
+        self.card_low = self._mk_card(cards, "BELOW LOWER", "0", "#FFF9C4", "#F57F17")
 
         toolbar = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         toolbar.pack(fill="x", padx=GRID, pady=(0, GRID))
@@ -232,25 +230,41 @@ class AnalysisPage(BasePage):
         else:
             self._charts_inner.pack_forget()
 
-    def _mk_card(self, parent: ctk.CTkFrame, title: str, val: str, accent: str) -> ctk.CTkLabel:
+    def _mk_card(
+        self,
+        parent: ctk.CTkFrame,
+        title: str,
+        val: str,
+        bg: str,
+        value_color: str,
+    ) -> ctk.CTkLabel:
+        """Summary tile: large value on top, label below (reference layout)."""
         f = ctk.CTkFrame(
             parent,
-            fg_color=BOSCH_WHITE,
+            fg_color=bg,
             corner_radius=8,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
-            width=148,
-            height=88,
+            width=160,
+            height=96,
         )
         f.pack(side="left", padx=(0, 8), pady=0)
         f.pack_propagate(False)
-        top = ctk.CTkFrame(f, fg_color=accent, height=5, corner_radius=0)
-        top.pack(fill="x")
-        ctk.CTkLabel(f, text=title, font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", padx=10, pady=(10, 2)
+        inner = ctk.CTkFrame(f, fg_color="transparent")
+        inner.pack(expand=True, fill="both", padx=12, pady=12)
+        lbl = ctk.CTkLabel(
+            inner,
+            text=val,
+            font=("Segoe UI", 28, "bold"),
+            text_color=value_color,
         )
-        lbl = ctk.CTkLabel(f, text=val, font=("Segoe UI", 22, "bold"), text_color=BOSCH_DARK_GRAY)
-        lbl.pack(anchor="w", padx=10, pady=(0, 10))
+        lbl.pack(anchor="center", pady=(0, 4))
+        ctk.CTkLabel(
+            inner,
+            text=title.upper(),
+            font=("Segoe UI", 9),
+            text_color=BOSCH_DARK_GRAY,
+        ).pack(anchor="center")
         return lbl
 
     def on_show(self) -> None:
@@ -284,8 +298,11 @@ class AnalysisPage(BasePage):
         if sess:
             note = (sess.get("session_note") or "").strip()
             fn = sess.get("file_name", "")
+            ts = sess.get("upload_date") or ""
             self.session_banner.configure(
-                text=f"Session #{sid}  ·  {fn}" + (f"  ·  Note: {note}" if note else "")
+                text=f"Session #{sid}  ·  {fn}"
+                + (f"  ·  {ts}" if ts else "")
+                + (f"  ·  Note: {note}" if note else "")
             )
             prev_list = db.list_upload_sessions(proj.id, limit=10)
             prev = None
@@ -318,9 +335,9 @@ class AnalysisPage(BasePage):
 
     def _set_cards(self, total: int, ok: int, high: int, low: int) -> None:
         self.card_total.configure(text=str(total))
-        self.card_pass.configure(text=str(ok), text_color=STATUS_OK)
-        self.card_high.configure(text=str(high), text_color=STATUS_FAIL if high else "#333333")
-        self.card_low.configure(text=str(low), text_color=STATUS_FAIL if low else "#333333")
+        self.card_pass.configure(text=str(ok))
+        self.card_high.configure(text=str(high))
+        self.card_low.configure(text=str(low))
 
     def _on_filter(self, show: str, ptype: str) -> None:
         save_settings(self.filter_bar.snapshot())
@@ -385,9 +402,11 @@ class AnalysisPage(BasePage):
         if not m:
             messagebox.showinfo("Bosch Plausibility Check", "Click a row in the table first.")
             return
+        zt = str(m.get("timestamp") or "").strip()
         line = (
             f"{m.get('parameter_name')}\t"
             f"min={m.get('value_min')}\tmax={m.get('value_max')}\tavg={m.get('value_avg')}\t"
+            f"zeit_out_of_range={zt or '—'}\t"
             f"status={m.get('status')}"
         )
         root = self.winfo_toplevel()

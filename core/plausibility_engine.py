@@ -125,9 +125,13 @@ def check_parameter(
     values: List[float],
     lower: Optional[float],
     upper: Optional[float],
+    zeit_labels: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     """
     v3: classify all runs against limits.
+
+    `zeit_labels` — same length as `values`, one label per row (e.g. PUMA ZEIT time);
+    when status is HIGH/LOW, `violation_zeit` lists times of out-of-range points.
 
     Status:
         NO_DATA — no valid numeric values
@@ -135,7 +139,14 @@ def check_parameter(
         HIGH — any value > upper (precedence over LOW)
         LOW — any value < lower (and not HIGH)
     """
-    valid = [float(v) for v in values if v is not None and not (isinstance(v, float) and math.isnan(v))]
+    valid: List[float] = []
+    z_valid: List[str] = []
+    z_in = zeit_labels if zeit_labels and len(zeit_labels) == len(values) else None
+    for i, v in enumerate(values):
+        if v is None or (isinstance(v, float) and math.isnan(v)):
+            continue
+        valid.append(float(v))
+        z_valid.append((z_in[i] if z_in else "").strip() or f"row {len(valid)}")
 
     if not valid:
         return {
@@ -145,6 +156,7 @@ def check_parameter(
             "num_runs": 0,
             "status": "NO_DATA",
             "limits_str": "",
+            "violation_zeit": "",
         }
 
     vmin = min(valid)
@@ -160,6 +172,7 @@ def check_parameter(
             "num_runs": n,
             "status": "OK",
             "limits_str": "",
+            "violation_zeit": "",
         }
 
     any_high = upper is not None and any(v > upper for v in valid)
@@ -172,6 +185,26 @@ def check_parameter(
     else:
         st = "OK"
 
+    viol_times: List[str] = []
+    if st == "HIGH" and upper is not None:
+        for v, z in zip(valid, z_valid):
+            if v > upper:
+                viol_times.append(z)
+    elif st == "LOW" and lower is not None:
+        for v, z in zip(valid, z_valid):
+            if v < lower:
+                viol_times.append(z)
+    # de-dupe, keep order, cap length for DB/UI
+    seen: set[str] = set()
+    viol_unique: List[str] = []
+    for t in viol_times:
+        if t not in seen:
+            seen.add(t)
+            viol_unique.append(t)
+    viol_str = ", ".join(viol_unique[:16])
+    if len(viol_unique) > 16:
+        viol_str += " …"
+
     return {
         "min": vmin,
         "max": vmax,
@@ -179,6 +212,7 @@ def check_parameter(
         "num_runs": n,
         "status": st,
         "limits_str": "",
+        "violation_zeit": viol_str,
     }
 
 
