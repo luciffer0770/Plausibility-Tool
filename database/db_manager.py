@@ -15,7 +15,7 @@ from core.models import EngineType, LimitDefinition, ParameterType, Project
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 
 def _project_root() -> Path:
@@ -126,6 +126,13 @@ class DatabaseManager:
                 try:
                     self._conn.execute(
                         "ALTER TABLE measurements ADD COLUMN values_sample TEXT"
+                    )
+                except sqlite3.OperationalError:
+                    pass
+            if ver < 5:
+                try:
+                    self._conn.execute(
+                        "ALTER TABLE upload_sessions ADD COLUMN session_note TEXT"
                     )
                 except sqlite3.OperationalError:
                     pass
@@ -385,6 +392,7 @@ class DatabaseManager:
         above_count: int = 0,
         below_count: int = 0,
         nodata_count: int = 0,
+        session_note: Optional[str] = None,
     ) -> int:
         with self.sql_session() as c:
             c.execute(
@@ -393,8 +401,8 @@ class DatabaseManager:
                     project_id, file_name, file_path, record_count,
                     pass_count, warn_count, fail_count,
                     version_test, application, datum,
-                    above_count, below_count, nodata_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    above_count, below_count, nodata_count, session_note
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     project_id,
@@ -410,9 +418,17 @@ class DatabaseManager:
                     above_count,
                     below_count,
                     nodata_count,
+                    session_note or "",
                 ),
             )
             return int(c.lastrowid)
+
+    def update_upload_session_note(self, session_id: int, note: str) -> None:
+        with self.sql_session() as c:
+            c.execute(
+                "UPDATE upload_sessions SET session_note=? WHERE id=?",
+                (note or "", session_id),
+            )
 
     def update_upload_session_counts(
         self,

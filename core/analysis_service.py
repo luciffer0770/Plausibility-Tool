@@ -50,6 +50,7 @@ def run_plausibility_for_file(
     timestamp_col: Optional[str],
     mappings: Optional[List[dict[str, Any]]],
     file_name: Optional[str] = None,
+    session_note: Optional[str] = None,
 ) -> int:
     """
     Parse PUMA file, run limits on all data rows per parameter, persist session.
@@ -154,6 +155,7 @@ def run_plausibility_for_file(
         above_count=high_n,
         below_count=low_n,
         nodata_count=nd_n,
+        session_note=session_note,
     )
 
     batch = []

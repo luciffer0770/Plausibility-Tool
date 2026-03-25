@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS upload_sessions (
     above_count     INTEGER DEFAULT 0,
     below_count     INTEGER DEFAULT 0,
     nodata_count    INTEGER DEFAULT 0,
+    session_note    TEXT,
     FOREIGN KEY (project_id) REFERENCES projects(id)
 );
 

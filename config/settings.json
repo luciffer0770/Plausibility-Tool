@@ -1,5 +1,9 @@
 {
   "last_project_id": null,
+  "last_puma_path": "",
   "default_export_dir": "",
-  "window_geometry": "1400x850"
+  "window_geometry": "1400x850",
+  "results_show": "All",
+  "results_type": "All",
+  "results_search": ""
 }
