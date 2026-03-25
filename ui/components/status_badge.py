@@ -12,10 +12,12 @@ def status_color(status: str) -> str:
     s = (status or "").upper()
     if s == "OK":
         return STATUS_OK
+    if s in ("HIGH", "LOW", "FAIL"):
+        return STATUS_FAIL
     if s == "WARNING":
         return STATUS_WARNING
-    if s == "FAIL":
-        return STATUS_FAIL
+    if s in ("NO_DATA", "N/A", "NA"):
+        return STATUS_NO_DATA
     return STATUS_NO_DATA
 
 

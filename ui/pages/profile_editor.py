@@ -37,6 +37,7 @@ _TYPE_SHORT = {
     ParameterType.PRESSURE: "Press",
     ParameterType.EMISSION: "Emiss",
     ParameterType.COMBUSTION: "Comb",
+    ParameterType.SET: "Set",
     ParameterType.OTHER: "Other",
 }
 
@@ -86,27 +87,31 @@ class _LimitTableRow:
         self.type_m.grid(row=0, column=2, padx=2, pady=2, sticky="w")
         self._apply_type_color()
 
-        self.desc_e = ctk.CTkEntry(self.frame, width=200, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.desc_e = ctk.CTkEntry(self.frame, width=160, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.desc_e.insert(0, d.description)
         self.desc_e.grid(row=0, column=3, padx=2, pady=2, sticky="ew")
+
+        self.cat_e = ctk.CTkEntry(self.frame, width=100, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.cat_e.insert(0, d.category or "")
+        self.cat_e.grid(row=0, column=4, padx=2, pady=2, sticky="ew")
 
         self.lo_e = ctk.CTkEntry(self.frame, width=72, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
         if d.lower_limit is not None:
             self.lo_e.insert(0, str(d.lower_limit))
-        self.lo_e.grid(row=0, column=4, padx=2, pady=2, sticky="ew")
+        self.lo_e.grid(row=0, column=5, padx=2, pady=2, sticky="ew")
 
         self.hi_e = ctk.CTkEntry(self.frame, width=72, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
         if d.upper_limit is not None:
             self.hi_e.insert(0, str(d.upper_limit))
-        self.hi_e.grid(row=0, column=5, padx=2, pady=2, sticky="ew")
+        self.hi_e.grid(row=0, column=6, padx=2, pady=2, sticky="ew")
 
         self.unit_e = ctk.CTkEntry(self.frame, width=52, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.unit_e.insert(0, d.unit)
-        self.unit_e.grid(row=0, column=6, padx=2, pady=2, sticky="ew")
+        self.unit_e.grid(row=0, column=7, padx=2, pady=2, sticky="ew")
 
-        self.rc_e = ctk.CTkEntry(self.frame, width=220, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.rc_e = ctk.CTkEntry(self.frame, width=180, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.rc_e.insert(0, d.root_cause)
-        self.rc_e.grid(row=0, column=7, padx=2, pady=2, sticky="ew")
+        self.rc_e.grid(row=0, column=8, padx=2, pady=2, sticky="ew")
 
         self.enabled_var = ctk.BooleanVar(value=d.is_enabled)
         self.en_cb = ctk.CTkCheckBox(
@@ -116,14 +121,14 @@ class _LimitTableRow:
             width=28,
             command=lambda: self._on_enabled(self),
         )
-        self.en_cb.grid(row=0, column=8, padx=4, pady=2)
+        self.en_cb.grid(row=0, column=9, padx=4, pady=2)
 
         self.wp_hidden = d.warning_pct
         self.ca_hidden = d.corrective_action
         self.req_hidden = d.is_required
 
-        for c in range(9):
-            self.frame.grid_columnconfigure(c, weight=1 if c in (3, 7) else 0)
+        for c in range(10):
+            self.frame.grid_columnconfigure(c, weight=1 if c in (3, 8) else 0)
 
     def _apply_type_color(self) -> None:
         s = self.type_var.get()
@@ -136,6 +141,7 @@ class _LimitTableRow:
             self.label_e,
             self.type_m,
             self.desc_e,
+            self.cat_e,
             self.lo_e,
             self.hi_e,
             self.unit_e,
@@ -151,6 +157,7 @@ class _LimitTableRow:
             parameter_name=self.label_e.get().strip(),
             parameter_type=pt,
             description=self.desc_e.get().strip(),
+            category=self.cat_e.get().strip(),
             unit=self.unit_e.get().strip(),
             lower_limit=lo,
             upper_limit=hi,
@@ -240,8 +247,19 @@ class ProfileEditorPage(BasePage):
 
         hdr = ctk.CTkFrame(self.table_wrap, fg_color="#EEEEEE", corner_radius=0)
         hdr.pack(fill="x")
-        labels = ("#", "LABEL", "TYPE", "DESCRIPTION", "LOWER", "UPPER", "UNIT", "ROOT CAUSE IF OUT OF RANGE", "ON")
-        widths = (36, 88, 72, 200, 72, 72, 52, 220, 40)
+        labels = (
+            "#",
+            "LABEL",
+            "TYPE",
+            "DESCRIPTION",
+            "CATEGORY",
+            "LOWER",
+            "UPPER",
+            "UNIT",
+            "ROOT CAUSE",
+            "ON",
+        )
+        widths = (36, 88, 72, 160, 100, 72, 72, 52, 180, 40)
         for i, (lb, w) in enumerate(zip(labels, widths)):
             ctk.CTkLabel(hdr, text=lb, width=w, font=font_small(), text_color=BOSCH_DARK_GRAY, anchor="w").grid(
                 row=0, column=i, padx=2, pady=6, sticky="w"
@@ -253,7 +271,7 @@ class ProfileEditorPage(BasePage):
     def on_show(self) -> None:
         proj = self.controller.current_project
         if proj:
-            self.engine_override.set(proj.engine_type.value)
+            self.engine_override.set(proj.engine_type_key())
         self._load_engine_profile()
 
     def _engine_type_value(self) -> str:

@@ -1,4 +1,4 @@
-"""Top header: logo, title, project, actions."""
+"""Top header: Bosch red bar, title, active project, actions."""
 
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ import customtkinter as ctk
 from PIL import Image
 
 from ui.theme import (
-    BOSCH_DARK_GRAY,
-    BOSCH_MID_GRAY,
+    BOSCH_RED,
     BOSCH_WHITE,
     GRID,
     HEADER_HEIGHT,
@@ -20,7 +19,7 @@ from ui.theme import (
 
 
 class HeaderBar(ctk.CTkFrame):
-    """White header strip."""
+    """Red header strip (v3 Bosch style)."""
 
     def __init__(
         self,
@@ -31,20 +30,15 @@ class HeaderBar(ctk.CTkFrame):
     ) -> None:
         super().__init__(
             master,
-            height=HEADER_HEIGHT,
-            fg_color=BOSCH_WHITE,
+            height=HEADER_HEIGHT + 4,
+            fg_color=BOSCH_RED,
             corner_radius=0,
         )
         self.pack_propagate(False)
         self._project_label: Optional[ctk.CTkLabel] = None
         self._title_label: Optional[ctk.CTkLabel] = None
-        self.on_export = on_export
-        self.on_settings = on_settings
 
-        border = ctk.CTkFrame(self, height=1, fg_color=BOSCH_MID_GRAY)
-        border.pack(side="bottom", fill="x")
-
-        row = ctk.CTkFrame(self, fg_color=BOSCH_WHITE)
+        row = ctk.CTkFrame(self, fg_color=BOSCH_RED)
         row.pack(fill="both", expand=True, padx=GRID * 2, pady=GRID)
 
         if logo_path and Path(logo_path).is_file():
@@ -53,19 +47,15 @@ class HeaderBar(ctk.CTkFrame):
                 img_ctk = ctk.CTkImage(light_image=img, dark_image=img, size=(80, 22))
                 ctk.CTkLabel(row, image=img_ctk, text="").pack(side="left", padx=(0, GRID))
             except OSError:
-                ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_DARK_GRAY).pack(
-                    side="left"
-                )
+                ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_WHITE).pack(side="left")
         else:
-            ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_DARK_GRAY).pack(
-                side="left"
-            )
+            ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_WHITE).pack(side="left")
 
         self._title_label = ctk.CTkLabel(
             row,
-            text="PRÜF — Plausibility Check Tool",
+            text="PLAUSIBILITY CHECKER — ENGINE TEST BENCH",
             font=font_h3(),
-            text_color=BOSCH_DARK_GRAY,
+            text_color=BOSCH_WHITE,
         )
         self._title_label.pack(side="left", padx=GRID * 2)
 
@@ -73,9 +63,9 @@ class HeaderBar(ctk.CTkFrame):
             row,
             text="",
             font=font_body(),
-            text_color=BOSCH_DARK_GRAY,
+            text_color=BOSCH_WHITE,
         )
-        self._project_label.pack(side="left", expand=True)
+        self._project_label.pack(side="right", padx=8)
 
         if on_export:
             ctk.CTkButton(
@@ -84,6 +74,9 @@ class HeaderBar(ctk.CTkFrame):
                 width=88,
                 height=32,
                 corner_radius=4,
+                fg_color=BOSCH_WHITE,
+                text_color=BOSCH_RED,
+                hover_color="#F2F2F2",
                 command=on_export,
             ).pack(side="right", padx=4)
         if on_settings:
@@ -94,16 +87,14 @@ class HeaderBar(ctk.CTkFrame):
                 height=32,
                 corner_radius=4,
                 fg_color="#E8E8E8",
-                text_color=BOSCH_DARK_GRAY,
+                text_color="#333333",
                 command=on_settings,
             ).pack(side="right", padx=4)
 
     def set_title(self, text: str) -> None:
-        """Set main title next to logo."""
         if self._title_label:
             self._title_label.configure(text=text)
 
     def set_project_text(self, text: str) -> None:
-        """Show current project in header."""
         if self._project_label:
             self._project_label.configure(text=text)

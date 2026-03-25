@@ -51,7 +51,7 @@ class PrufApp(ctk.CTk):
         ctk.set_default_color_theme("blue")
         super().__init__()
         ensure_theme_ready()
-        self.title("BOSCH | Plausibility Checker — Engine Test Bench")
+        self.title("PRÜF — Plausibility Check Tool")
         geo = os.environ.get("PRUF_GEOMETRY", "1400x850")
         minsz = os.environ.get("PRUF_MINSIZE", "1024x600")
         try:
@@ -87,7 +87,7 @@ class PrufApp(ctk.CTk):
             logo_path=_LOGO if _LOGO.is_file() else None,
         )
         self._header.pack(fill="x")
-        self._header.set_title("BOSCH | Plausibility Checker — Engine Test Bench")
+        self._header.set_title("PLAUSIBILITY CHECKER — ENGINE TEST BENCH")
 
         self._tab_bar = TopTabBar(
             self.main_shell,
@@ -140,7 +140,7 @@ class PrufApp(ctk.CTk):
         if not proj:
             logger.error("Project %s not found", project_id)
             return
-        ensure_default_profile(self.db, proj.engine_type.value)
+        ensure_default_profile(self.db, proj.engine_type_key())
         self.current_project = proj
         self.current_session_id = None
         last = self.db.list_upload_sessions(project_id, limit=1)

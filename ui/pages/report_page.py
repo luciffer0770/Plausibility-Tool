@@ -8,7 +8,11 @@ from typing import Any, Optional, Tuple
 
 import customtkinter as ctk
 
-from core.report_generator import write_annotated_excel, write_pdf_summary
+from core.report_generator import (
+    write_annotated_excel,
+    write_pdf_summary,
+    write_plausibility_report_excel,
+)
 from database.db_manager import DatabaseManager
 from ui.pages.base_page import BasePage
 from ui.theme import BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, BOSCH_WHITE, GRID, font_body
@@ -34,8 +38,17 @@ class ReportPage(BasePage):
         ctk.CTkLabel(box, text="Reports", font=font_body()).pack(anchor="w", padx=GRID, pady=GRID)
         ctk.CTkButton(
             box,
-            text="Export annotated Excel…",
-            width=200,
+            text="Export plausibility report (Bosch format)…",
+            width=280,
+            height=36,
+            corner_radius=4,
+            command=self._export_report_xlsx,
+            font=font_body(),
+        ).pack(anchor="w", padx=GRID, pady=8)
+        ctk.CTkButton(
+            box,
+            text="Export annotated workbook (original + analysis)…",
+            width=280,
             height=36,
             corner_radius=4,
             command=self._export_xlsx,
@@ -63,6 +76,23 @@ class ReportPage(BasePage):
             messagebox.showwarning("PRÜF", "Original file path not stored for this session.")
             return None
         return sid, Path(sess["file_path"])
+
+    def _export_report_xlsx(self) -> None:
+        sid = self.controller.current_session_id
+        if sid is None:
+            messagebox.showwarning("PRÜF", "No session.")
+            return
+        out = filedialog.asksaveasfilename(
+            defaultextension=".xlsx",
+            filetypes=[("Excel", "*.xlsx")],
+        )
+        if not out:
+            return
+        try:
+            write_plausibility_report_excel(Path(out), sid, self.controller.db)
+            messagebox.showinfo("PRÜF", f"Saved:\n{out}")
+        except Exception as e:
+            messagebox.showerror("PRÜF", str(e))
 
     def _export_xlsx(self) -> None:
         ctx = self._session_context()
@@ -92,8 +122,12 @@ class ReportPage(BasePage):
         sess = db.get_upload_session(sid)
         ok_n = sum(1 for m in rows if m.get("status") == "OK")
         w_n = sum(1 for m in rows if m.get("status") == "WARNING")
-        f_n = sum(1 for m in rows if m.get("status") == "FAIL")
-        nd_n = sum(1 for m in rows if m.get("status") == "NO_DATA")
+        f_n = sum(
+            1
+            for m in rows
+            if m.get("status") in ("FAIL", "HIGH", "LOW")
+        )
+        nd_n = sum(1 for m in rows if m.get("status") in ("NO_DATA", "N/A"))
         summary = {
             "ok_n": ok_n,
             "warn_n": w_n,

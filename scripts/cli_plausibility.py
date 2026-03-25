@@ -19,7 +19,6 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from core.analysis_service import run_plausibility_for_file
-from core.data_loader import detect_column_mapping, load_dataframe
 from core.models import EngineType, Project
 from core.profile_manager import ensure_default_profile
 from database.db_manager import DatabaseManager
@@ -33,9 +32,8 @@ def cmd_list_projects(db: DatabaseManager) -> int:
     print(f"{'ID':>4}  {'Name':<32}  {'Engine':<22}  Test bed")
     print("-" * 80)
     for p in rows:
-        print(
-            f"{p.id or 0:>4}  {p.name[:32]:<32}  {p.engine_type.value[:22]:<22}  {p.test_bed_id or '—'}"
-        )
+        et = p.engine_type_key()
+        print(f"{p.id or 0:>4}  {p.name[:32]:<32}  {et[:22]:<22}  {p.test_bed_id or '—'}")
     return 0
 
 
@@ -46,13 +44,22 @@ def cmd_create_project(
     test_bed: str,
 ) -> int:
     et = EngineType.TURBO_4CYL
+    custom = ""
     for e in EngineType:
         if e.value == engine:
             et = e
             break
-    proj = Project(name=name, engine_type=et, test_bed_id=test_bed)
+    else:
+        custom = engine.strip()
+    proj = Project(
+        name=name,
+        engine_type=et,
+        engine_type_name=custom,
+        test_bed_id=test_bed,
+    )
+    db.insert_engine_type_if_missing(proj.engine_type_key())
     pid = db.insert_project(proj)
-    ensure_default_profile(db, et.value)
+    ensure_default_profile(db, proj.engine_type_key())
     print(f"Created project id={pid}  ({name})")
     return 0
 
@@ -62,25 +69,19 @@ def cmd_run(db: DatabaseManager, project_id: int, file_path: Path) -> int:
     if not proj:
         print(f"Error: project id {project_id} not found.", file=sys.stderr)
         return 1
-    ensure_default_profile(db, proj.engine_type.value)
+    ensure_default_profile(db, proj.engine_type_key())
     fp = Path(file_path).resolve()
     if not fp.is_file():
         print(f"Error: file not found: {fp}", file=sys.stderr)
         return 1
 
-    df = load_dataframe(fp)
-    mapping = detect_column_mapping(df)
-    if not mapping.get("mappings"):
-        print("Error: no parameter columns detected. Check headers.", file=sys.stderr)
-        return 1
-
     sid = run_plausibility_for_file(
         db,
         project_id,
-        proj.engine_type.value,
+        proj.engine_type_key(),
         fp,
-        mapping.get("timestamp_col"),
-        mapping["mappings"],
+        None,
+        None,
         file_name=fp.name,
     )
     meas = db.get_measurements_for_session(sid)

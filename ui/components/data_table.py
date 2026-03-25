@@ -1,4 +1,4 @@
-"""Scrollable results table with row tinting."""
+"""Scrollable results table (v3 columns)."""
 
 from __future__ import annotations
 
@@ -6,21 +6,31 @@ from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
-from ui.components.status_badge import StatusBadge
+from core.plausibility_engine import limits_display_str
 from ui.theme import (
     BOSCH_DARK_GRAY,
     BOSCH_MID_GRAY,
     BOSCH_WHITE,
     GRID,
-    ROW_FAIL_BG,
-    ROW_WARN_BG,
     ROW_ALT_A,
     ROW_ALT_B,
+    STATUS_FAIL,
+    STATUS_NO_DATA,
+    STATUS_OK,
     font_mono,
     font_small,
 )
 
-COL_WIDTHS = (36, 88, 200, 72, 64, 64, 64, 72, 72, 80, 160)
+COL_WIDTHS = (72, 140, 88, 64, 40, 56, 56, 56, 100, 56, 140)
+
+
+def _status_fg(st: str) -> str:
+    s = (st or "").upper()
+    if s == "OK":
+        return STATUS_OK
+    if s in ("HIGH", "LOW", "FAIL"):
+        return STATUS_FAIL
+    return STATUS_NO_DATA
 
 
 class DataTable(ctk.CTkFrame):
@@ -33,20 +43,19 @@ class DataTable(ctk.CTkFrame):
     ) -> None:
         super().__init__(master, fg_color=BOSCH_WHITE)
         self.on_row_click = on_row_click
-        self._rows: list[dict[str, Any]] = []
         self._row_widgets: list[ctk.CTkFrame] = []
 
         headers = (
-            "St",
             "Parameter",
             "Description",
-            "Value",
+            "Category",
+            "Type",
+            "Runs",
             "Min",
             "Max",
             "Avg",
-            "Lo",
-            "Hi",
-            "Dev %",
+            "Limits",
+            "Status",
             "Root cause",
         )
         head = ctk.CTkFrame(self, fg_color=BOSCH_WHITE)
@@ -68,54 +77,66 @@ class DataTable(ctk.CTkFrame):
         self.body.pack(fill="both", expand=True, padx=GRID, pady=GRID)
 
     def set_rows(self, rows: list[dict[str, Any]]) -> None:
-        """Render measurement dicts."""
         for w in self._row_widgets:
             w.destroy()
         self._row_widgets.clear()
-        self._rows = rows
 
         for idx, m in enumerate(rows):
             bg = ROW_ALT_A if idx % 2 == 0 else ROW_ALT_B
             st = str(m.get("status", ""))
-            if st == "FAIL":
-                bg = ROW_FAIL_BG
-            elif st == "WARNING":
-                bg = ROW_WARN_BG
+            if st in ("HIGH", "LOW", "FAIL"):
+                bg = "#FDE8E8"
+            elif st in ("NO_DATA", "N/A"):
+                bg = "#F5F5F5"
 
             row_f = ctk.CTkFrame(self.body, fg_color=bg, corner_radius=0)
             row_f.pack(fill="x", pady=1)
             self._row_widgets.append(row_f)
 
-            badge_fr = ctk.CTkFrame(row_f, fg_color=bg, width=COL_WIDTHS[0])
-            badge_fr.grid(row=0, column=0, padx=2, pady=2, sticky="nw")
-            StatusBadge(badge_fr, st, size=12).pack(padx=4, pady=4)
-
             def _fmt(v: Any) -> str:
                 if v is None:
                     return "—"
                 if isinstance(v, float):
-                    return f"{v:.4g}"
+                    return f"{v:.2f}"
                 return str(v)
 
-            vals = [
+            lo = m.get("limit_lower")
+            hi = m.get("limit_upper")
+            unit = str(m.get("unit") or "")
+            lims = limits_display_str(
+                float(lo) if lo is not None else None,
+                float(hi) if hi is not None else None,
+                unit,
+            )
+
+            vals: list[Any] = [
                 str(m.get("parameter_name", "")),
-                str(m.get("description", ""))[:48],
-                _fmt(m.get("measured_value")),
+                str(m.get("description", ""))[:36],
+                str(m.get("category", ""))[:22],
+                str(m.get("param_type", m.get("parameter_type", "")))[:12],
+                str(m.get("num_runs", "")),
                 _fmt(m.get("value_min")),
                 _fmt(m.get("value_max")),
                 _fmt(m.get("value_avg")),
-                _fmt(m.get("limit_lower")),
-                _fmt(m.get("limit_upper")),
-                _fmt(m.get("deviation")),
-                str(m.get("root_cause", ""))[:60],
+                lims[:28],
+                st,
+                str(m.get("root_cause", ""))[:48],
             ]
-            for col, (txt, w) in enumerate(zip(vals, COL_WIDTHS[1:]), start=1):
+            fam, sz = font_small()
+            for col, (txt, w) in enumerate(zip(vals, COL_WIDTHS)):
+                fg = _status_fg(st) if col == 9 else BOSCH_DARK_GRAY
+                if col in (5, 6, 7, 8):
+                    fnt = font_mono()
+                elif col == 9 and st not in ("OK", "NO_DATA", "N/A", ""):
+                    fnt = (fam, sz, "bold")
+                else:
+                    fnt = font_small()
                 ctk.CTkLabel(
                     row_f,
                     text=txt,
                     width=w,
-                    font=font_mono() if col in (3, 4, 5, 6, 7, 8, 9) else font_small(),
-                    text_color=BOSCH_DARK_GRAY,
+                    font=fnt,
+                    text_color=fg,
                     anchor="w",
                 ).grid(row=0, column=col, padx=2, pady=2, sticky="w")
 

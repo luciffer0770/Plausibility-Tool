@@ -10,7 +10,12 @@ from typing import Any, Optional
 import customtkinter as ctk
 import pandas as pd
 
-from core.data_loader import detect_column_mapping, load_dataframe, preview_dataframe
+from core.data_loader import (
+    build_canonical_numeric_df,
+    detect_column_mapping,
+    load_puma_file,
+    preview_dataframe,
+)
 from ui.components.file_drop_zone import FileDropZone
 from ui.pages.base_page import BasePage
 from ui.theme import BOSCH_DARK_GRAY, BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, BOSCH_WHITE, GRID, font_body, font_small
@@ -26,12 +31,16 @@ class UploadPage(BasePage):
         self._path: Optional[Path] = None
         self._mapping: dict[str, Any] = {}
         self._df_preview: Optional[pd.DataFrame] = None
+        self._meta: dict[str, Any] = {}
+        self.meta_label: Optional[ctk.CTkLabel] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
         left = ctk.CTkFrame(self, fg_color="transparent")
         left.pack(side="left", fill="both", expand=True, padx=GRID, pady=GRID)
+        self.meta_label = ctk.CTkLabel(left, text="", font=font_small(), text_color=BOSCH_DARK_GRAY, anchor="w")
+        self.meta_label.pack(anchor="w", pady=(0, GRID))
         ctk.CTkLabel(left, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
             anchor="w", pady=(0, 4)
         )
@@ -80,23 +89,39 @@ class UploadPage(BasePage):
     def _on_file(self, path: Path) -> None:
         self._path = path
         try:
-            df = load_dataframe(path)
+            df, self._meta = load_puma_file(path)
             self._mapping = detect_column_mapping(df)
-            self._df_preview = preview_dataframe(df, 12)
+            self._df_preview = preview_dataframe(df, 15)
+            canon, _ = build_canonical_numeric_df(df)
+            nlim = 0
+            proj = self.controller.current_project
+            if proj:
+                lims = self.controller.db.get_limit_profile(proj.engine_type_key())
+                enabled = {d.parameter_name for d in lims if d.is_enabled}
+                nlim = sum(1 for c in canon.columns if c in enabled)
         except Exception as e:
             logger.exception("Load failed")
             messagebox.showerror("PRÜF", f"Could not load file:\n{e}")
             return
 
+        if self.meta_label:
+            self.meta_label.configure(
+                text=(
+                    f"File: {path.name}  |  Date: {self._meta.get('datum', '—')}  "
+                    f"|  Version: {self._meta.get('versiont', '—')}  "
+                    f"|  Application: {self._meta.get('prname', '—')}  |  Runs: {len(df)}"
+                )
+            )
         lines = [
-            f"Rows: {len(df)}",
-            f"Parameters detected: {len({m['parameter'] for m in self._mapping['mappings']})}",
-            f"Mapped columns: {len(self._mapping['mappings'])}",
-            f"Timestamp column: {self._mapping.get('timestamp_col') or '—'}",
+            f"Rows: {len(df)}  |  Columns: {len(df.columns)}  |  Format: {self._meta.get('file_type', '')}",
+            f"Canonical numeric columns: {len(canon.columns)}",
+            f"Mapped to configured limits: {nlim}",
             "",
-            "Unmapped columns:",
+            "Unmapped sample (first 15 non-meta):",
         ]
-        lines.extend(f"  • {c}" for c in self._mapping.get("unmapped_columns", []))
+        skip = {"PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME"}
+        extra = [c for c in df.columns if c not in skip][:15]
+        lines.extend(f"  • {c}" for c in extra)
         self.summary.delete("1.0", "end")
         self.summary.insert("1.0", "\n".join(lines))
 
@@ -120,10 +145,10 @@ class UploadPage(BasePage):
             sid = run_plausibility_for_file(
                 self.controller.db,
                 proj.id,
-                proj.engine_type.value,
+                proj.engine_type_key(),
                 self._path,
                 self._mapping.get("timestamp_col"),
-                self._mapping["mappings"],
+                None,
             )
             self.controller.set_current_session(sid)
             messagebox.showinfo("PRÜF", f"Analysis complete. Session id {sid}.")
