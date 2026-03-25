@@ -79,14 +79,11 @@ Place `assets/bosch_logo.png` in the repository for the header and PDF (corporat
 
 ## Features (Phase 1)
 
-- Projects with engine type and test bed ID
-- SQLite storage (`pruf_data.db` in the working directory)
-- Limit profile editor: edit all fields, JSON import/export, Excel import for extra parameters, clone profile, **Required** toggled via clickable button
-- PUMA upload with auto column mapping and preview
-- Plausibility analysis (first data row vs limits)
-- Analysis table with filters and detail panel
-- Dashboard charts and upload history
-- Annotated Excel export and PDF summary
+- **Tabbed UI** (reference-style): **PROJECTS** | **LIMITS CONFIG** | **UPLOAD & EVALUATE** | **RESULTS** (+ Export/Settings in header)
+- Projects: create + list/select; header shows `ACTIVE: …`
+- **LIMITS CONFIG**: scrollable **table** (#, label, type, description, lower/upper, unit, root cause, **ON** checkbox). Category filter, **SAVE ALL LIMITS**, JSON/Excel import, clone. Disabled rows are skipped in plausibility checks.
+- SQLite (`pruf_data.db`); schema v2 adds `is_enabled` on limit profiles (auto-migrated)
+- PUMA upload with mapping preview; analysis (first data row vs limits); results table + export
 
 ## Tests
 

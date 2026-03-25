@@ -37,6 +37,7 @@ class HeaderBar(ctk.CTkFrame):
         )
         self.pack_propagate(False)
         self._project_label: Optional[ctk.CTkLabel] = None
+        self._title_label: Optional[ctk.CTkLabel] = None
         self.on_export = on_export
         self.on_settings = on_settings
 
@@ -60,12 +61,13 @@ class HeaderBar(ctk.CTkFrame):
                 side="left"
             )
 
-        ctk.CTkLabel(
+        self._title_label = ctk.CTkLabel(
             row,
             text="PRÜF — Plausibility Check Tool",
             font=font_h3(),
             text_color=BOSCH_DARK_GRAY,
-        ).pack(side="left", padx=GRID * 2)
+        )
+        self._title_label.pack(side="left", padx=GRID * 2)
 
         self._project_label = ctk.CTkLabel(
             row,
@@ -95,6 +97,11 @@ class HeaderBar(ctk.CTkFrame):
                 text_color=BOSCH_DARK_GRAY,
                 command=on_settings,
             ).pack(side="right", padx=4)
+
+    def set_title(self, text: str) -> None:
+        """Set main title next to logo."""
+        if self._title_label:
+            self._title_label.configure(text=text)
 
     def set_project_text(self, text: str) -> None:
         """Show current project in header."""

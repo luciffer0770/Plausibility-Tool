@@ -26,6 +26,7 @@ def _definition_to_dict(d: LimitDefinition) -> dict[str, Any]:
         "root_cause": d.root_cause,
         "corrective_action": d.corrective_action,
         "is_required": d.is_required,
+        "is_enabled": d.is_enabled,
     }
 
 
@@ -46,6 +47,7 @@ def _dict_to_definition(data: dict[str, Any]) -> LimitDefinition:
         root_cause=str(data.get("root_cause", "")),
         corrective_action=str(data.get("corrective_action", "")),
         is_required=bool(data.get("is_required", False)),
+        is_enabled=bool(data.get("is_enabled", True)),
     )
 
 
@@ -107,6 +109,7 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
     rc_c = col("root_cause")
     ca_c = col("corrective_action", "action")
     req_c = col("is_required", "required")
+    en_c = col("is_enabled", "enabled", "on")
 
     out: list[LimitDefinition] = []
     for _, row in df.iterrows():
@@ -134,6 +137,13 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
                 req = bool(int(v))
             else:
                 req = str(v).strip().lower() in ("1", "true", "yes", "y", "x")
+        enabled = True
+        if en_c and pd.notna(row.get(en_c)):
+            v = row[en_c]
+            if isinstance(v, (int, float)):
+                enabled = bool(int(v))
+            else:
+                enabled = str(v).strip().lower() in ("1", "true", "yes", "y", "x")
 
         out.append(
             LimitDefinition(
@@ -147,6 +157,7 @@ def import_parameters_from_excel(path: Path) -> list[LimitDefinition]:
                 root_cause=rc,
                 corrective_action=ca,
                 is_required=req,
+                is_enabled=enabled,
             )
         )
     return out

@@ -50,6 +50,7 @@ class LimitDefinition:
     root_cause: str = ""
     corrective_action: str = ""
     is_required: bool = False
+    is_enabled: bool = True
 
 
 @dataclass

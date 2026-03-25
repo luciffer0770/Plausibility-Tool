@@ -58,10 +58,17 @@ class AnalysisPage(BasePage):
         self._reload()
 
     def _reload(self) -> None:
+        proj = self.controller.current_project
+        if proj is None or proj.id is None:
+            self._all_rows = []
+            self.table.set_rows([])
+            self.summary_label.configure(text="Select a project on the PROJECTS tab first.")
+            return
+
         sid = self.controller.current_session_id
         db: DatabaseManager = self.controller.db
         if sid is None:
-            sessions = db.list_upload_sessions(self.controller.current_project.id or 0, limit=1)
+            sessions = db.list_upload_sessions(proj.id, limit=1)
             if sessions:
                 self.controller.set_current_session(sessions[0]["id"])
                 sid = sessions[0]["id"]
@@ -73,8 +80,7 @@ class AnalysisPage(BasePage):
             return
 
         rows = db.get_measurements_for_session(sid)
-        proj = self.controller.current_project
-        defs = db.get_limit_profile(proj.engine_type.value) if proj else []
+        defs = db.get_limit_profile(proj.engine_type.value)
         desc = {d.parameter_name: d for d in defs}
         ptype = {d.parameter_name: d.parameter_type.value for d in defs}
 

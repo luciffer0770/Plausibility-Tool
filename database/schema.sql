@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS limit_profiles (
     corrective_action   TEXT,
     description         TEXT,
     is_required         INTEGER DEFAULT 0,
+    is_enabled          INTEGER DEFAULT 1,
     UNIQUE(engine_type, parameter_name)
 );
 

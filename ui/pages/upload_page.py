@@ -32,6 +32,15 @@ class UploadPage(BasePage):
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
         left = ctk.CTkFrame(self, fg_color="transparent")
         left.pack(side="left", fill="both", expand=True, padx=GRID, pady=GRID)
+        ctk.CTkLabel(left, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w", pady=(0, 4)
+        )
+        ctk.CTkLabel(
+            left,
+            text="Supported: .xlsx, .xls, .csv — auto-map parameter columns where possible.",
+            font=font_small(),
+            text_color=BOSCH_DARK_GRAY,
+        ).pack(anchor="w", pady=(0, GRID))
 
         self.drop = FileDropZone(left, self._on_file)
         self.drop.pack(fill="both", expand=True)
@@ -61,7 +70,7 @@ class UploadPage(BasePage):
 
         ctk.CTkButton(
             right,
-            text="Run plausibility check",
+            text="RUN PLAUSIBILITY CHECK",
             height=36,
             corner_radius=4,
             command=self._run_analysis,
@@ -100,7 +109,7 @@ class UploadPage(BasePage):
             return
         proj = self.controller.current_project
         if not proj or proj.id is None:
-            messagebox.showwarning("PRÜF", "No active project.")
+            messagebox.showwarning("PRÜF", "Select or create a project on the PROJECTS tab first.")
             return
         if not self._mapping.get("mappings"):
             messagebox.showwarning("PRÜF", "No parameter columns mapped.")

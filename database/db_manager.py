@@ -14,7 +14,7 @@ from core.models import EngineType, LimitDefinition, ParameterType, Project
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
 
 def _project_root() -> Path:
@@ -75,6 +75,13 @@ class DatabaseManager:
         ).fetchone()
         ver = int(row["value"]) if row else 0
         if ver < _SCHEMA_VERSION:
+            if ver < 2:
+                try:
+                    self._conn.execute(
+                        "ALTER TABLE limit_profiles ADD COLUMN is_enabled INTEGER DEFAULT 1"
+                    )
+                except sqlite3.OperationalError:
+                    pass
             self._conn.execute(
                 "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)",
                 ("schema_version", str(_SCHEMA_VERSION)),
@@ -213,8 +220,8 @@ class DatabaseManager:
                     INSERT INTO limit_profiles (
                         engine_type, parameter_name, parameter_type, unit,
                         lower_limit, upper_limit, warning_pct, root_cause,
-                        corrective_action, description, is_required
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        corrective_action, description, is_required, is_enabled
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         engine_type,
@@ -228,6 +235,7 @@ class DatabaseManager:
                         d.corrective_action or "",
                         d.description or "",
                         1 if d.is_required else 0,
+                        1 if d.is_enabled else 0,
                     ),
                 )
 
@@ -259,6 +267,7 @@ class DatabaseManager:
                     root_cause=r["root_cause"] or "",
                     corrective_action=r["corrective_action"] or "",
                     is_required=bool(r["is_required"]),
+                    is_enabled=bool(r["is_enabled"]) if "is_enabled" in r else True,
                 )
             )
         return out

@@ -27,6 +27,7 @@ class TestProfileManager(unittest.TestCase):
         self.assertEqual(out[0].parameter_name, "T0")
         self.assertEqual(out[0].lower_limit, 0.0)
         self.assertTrue(out[0].is_required)
+        self.assertTrue(out[0].is_enabled)
 
 
 if __name__ == "__main__":

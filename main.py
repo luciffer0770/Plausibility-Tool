@@ -24,7 +24,10 @@ logging.basicConfig(
 def main() -> None:
     """Start the application."""
     app = PrufApp()
-    app.mainloop()
+    try:
+        app.mainloop()
+    finally:
+        app.db.close()
 
 
 if __name__ == "__main__":

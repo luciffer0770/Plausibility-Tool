@@ -86,6 +86,8 @@ def run_plausibility_for_file(
                 description="",
                 unit="",
             )
+        elif not d.is_enabled:
+            continue
         instant, vmin, vmax, vavg = _values_for_param(row0, param)
         check_val = instant
         if check_val is None and vavg is not None:
