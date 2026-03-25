@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fluxbox \
     x11vnc \
     novnc \
+    xterm \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --no-cache-dir websockify

@@ -23,6 +23,27 @@ sleep 1
 fluxbox &
 sleep 1
 
+# Auto-open a terminal so users are not stuck with an empty desktop
+(
+  sleep 2
+  export DISPLAY=:99
+  cat >/tmp/pruf-xterm.sh <<'EOS'
+#!/bin/bash
+echo "======== PRÜF desktop terminal ========"
+echo "GUI:  cd to your repo, then:  python3 main.py"
+echo "CLI:  python3 scripts/cli_plausibility.py list-projects"
+echo "      python3 scripts/cli_plausibility.py run --project-id ID --file file.xlsx"
+echo "========================================="
+for d in /workspaces/*/ /workspace; do
+  if [ -f "$d/main.py" ]; then cd "$d" 2>/dev/null && break; fi
+done
+pwd
+exec bash -l
+EOS
+  chmod +x /tmp/pruf-xterm.sh
+  xterm -geometry 110x26+40+80 -bg '#FFFFFF' -fg '#333333' -title 'PRÜF — run python3 main.py here' -e /tmp/pruf-xterm.sh &
+) &
+
 # VNC without password — dev container only; do not expose publicly outside Codespaces
 x11vnc -display :99 -nopw -forever -shared -listen 127.0.0.1 -rfbport 5900 -bg
 sleep 1

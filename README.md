@@ -16,9 +16,25 @@ python3 main.py
 
 Use **Python 3.10+** (on Windows, `py -3 main.py` if `python` is still 2.x).
 
-## Run in GitHub Codespaces (see the GUI)
+## Run in GitHub Codespaces
 
-Tk apps have no window in the browser by themselves. You must open **noVNC** (virtual desktop) on port **6080**, then start the app **inside that desktop** (or use the VS Code terminal with `DISPLAY=:99` — same screen).
+### Option 1 — No GUI (recommended if noVNC is painful)
+
+Use the **CLI** from the normal VS Code terminal (no browser, no VNC):
+
+```bash
+cd /workspaces/<YOUR-REPO-NAME>
+pip install -r requirements.txt   # if not already done
+python3 scripts/cli_plausibility.py create-project --name "MyTest" --test-bed TB-03
+python3 scripts/cli_plausibility.py list-projects
+python3 scripts/cli_plausibility.py run --project-id 1 --file ./your_data.xlsx
+```
+
+`create-project` seeds limits for the chosen engine type; no GUI required.
+
+### Option 2 — GUI via noVNC
+
+Tk apps have no window in the browser by themselves. Open **noVNC** on port **6080**, then start the app **in the auto-opened xterm** on the grey desktop **or** in VS Code terminal (`DISPLAY=:99` is set in the dev container).
 
 ### A — First time on this branch
 
@@ -33,7 +49,7 @@ Tk apps have no window in the browser by themselves. You must open **noVNC** (vi
 2. Find port **6080** → set **Visibility** to **Public** → click the **globe** “open in browser”.
 3. In the noVNC tab you should land on the viewer (or click **Connect** if prompted).  
    **If you see “Directory listing for /”** instead, click **`vnc.html`** in the list — or **rebuild the container** so the updated startup script adds an automatic redirect.
-4. **Inside the grey desktop**, right‑click → **Terminal** (Fluxbox menu), **or** use the VS Code terminal and run:
+4. You should see a **white xterm window** on the desktop with instructions — run **`python3 main.py`** there. **Or** use the VS Code terminal and run:
 
    ```bash
    ./scripts/codespace_run_gui.sh
