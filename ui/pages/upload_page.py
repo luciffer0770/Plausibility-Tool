@@ -53,25 +53,32 @@ class UploadPage(BasePage):
     def setup_ui(self) -> None:
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
 
-        top = ctk.CTkFrame(self, fg_color="transparent")
-        top.pack(fill="x", padx=GRID, pady=(GRID // 2, GRID))
-
-        left_col = ctk.CTkFrame(top, fg_color="transparent", width=300)
-        left_col.pack(side="left", fill="y", padx=(0, GRID))
-        left_col.pack_propagate(False)
-
-        ctk.CTkLabel(left_col, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", pady=(0, 2)
+        top_card = ctk.CTkFrame(
+            self,
+            fg_color=BOSCH_WHITE,
+            corner_radius=8,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
         )
+        top_card.pack(fill="x", padx=GRID, pady=(GRID // 2, GRID))
+        top_card.grid_columnconfigure(0, weight=1, uniform="upload_top")
+        top_card.grid_columnconfigure(1, weight=1, uniform="upload_top")
+
+        left_col = ctk.CTkFrame(top_card, fg_color="transparent")
+        left_col.grid(row=0, column=0, sticky="nsew", padx=(GRID, GRID // 2), pady=GRID)
+
+        hdr = ctk.CTkFrame(left_col, fg_color="transparent")
+        hdr.pack(fill="x", pady=(0, 4))
+        ctk.CTkLabel(hdr, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(anchor="w")
         ctk.CTkLabel(
-            left_col,
-            text=".xlsx · .xls (TSV) · .csv",
+            hdr,
+            text="Formats: .xlsx · .xls (TSV) · .csv",
             font=font_small(),
             text_color=BOSCH_DARK_GRAY,
-        ).pack(anchor="w", pady=(0, 4))
+        ).pack(anchor="w", pady=(2, 0))
 
         self.drop = FileDropZone(left_col, self._on_file, compact=True)
-        self.drop.pack(fill="x", pady=(0, 6))
+        self.drop.pack(fill="x", pady=(0, 8))
 
         ctk.CTkLabel(left_col, text="Session note (optional)", font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
             anchor="w"
@@ -80,22 +87,23 @@ class UploadPage(BasePage):
         self.note_entry = ctk.CTkEntry(
             left_col,
             textvariable=self.note_var,
-            placeholder_text="e.g. Cold start",
+            placeholder_text="e.g. Cold start, Map 2",
             font=font_small(),
-            height=28,
+            height=30,
             border_color=BOSCH_MID_GRAY,
             fg_color=BOSCH_WHITE,
         )
-        self.note_entry.pack(fill="x", pady=(2, 8))
+        self.note_entry.pack(fill="x", pady=(4, 10))
         self.after_idle(neutral_ctk_entry_focus, self.note_entry)
         self.note_entry.bind("<Return>", self._on_enter_run)
 
         btn_row = ctk.CTkFrame(left_col, fg_color="transparent")
         btn_row.pack(fill="x")
+        _bh = 36
         self.run_btn = ctk.CTkButton(
             btn_row,
-            text="▶ Run check",
-            height=34,
+            text="Run plausibility check",
+            height=_bh,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
@@ -103,50 +111,45 @@ class UploadPage(BasePage):
             command=self._run_analysis,
             state="disabled",
         )
-        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.rerun_btn = ctk.CTkButton(
             btn_row,
-            text="Re-run",
-            width=88,
-            height=34,
+            text="Re-run last file",
+            width=132,
+            height=_bh,
             corner_radius=4,
             fg_color=BOSCH_WHITE,
             text_color=BOSCH_DARK_GRAY,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
+            hover_color="#EEEEEE",
             font=font_small(),
             command=self._rerun_last,
             state="disabled",
         )
         self.rerun_btn.pack(side="right")
 
-        right = ctk.CTkFrame(
-            top,
-            fg_color=BOSCH_WHITE,
-            corner_radius=6,
-            border_width=1,
-            border_color=BOSCH_MID_GRAY,
-        )
-        right.pack(side="right", fill="both", expand=True)
+        right = ctk.CTkFrame(top_card, fg_color="#FAFAFA", corner_radius=6, border_width=1, border_color=BOSCH_MID_GRAY)
+        right.grid(row=0, column=1, sticky="nsew", padx=(GRID // 2, GRID), pady=GRID)
 
         ctk.CTkLabel(right, text="File metadata", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", padx=GRID, pady=(GRID, 2)
+            anchor="w", padx=GRID, pady=(GRID, 4)
         )
-        self.meta_box = ctk.CTkTextbox(right, height=100, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.meta_box.pack(fill="x", padx=GRID, pady=2)
+        self.meta_box = ctk.CTkTextbox(right, height=92, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.meta_box.pack(fill="x", padx=GRID, pady=(0, 4))
 
         ctk.CTkLabel(right, text="Mapping summary", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", padx=GRID, pady=(4, 2)
+            anchor="w", padx=GRID, pady=(4, 4)
         )
-        self.summary = ctk.CTkTextbox(right, height=72, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.summary = ctk.CTkTextbox(right, height=88, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.summary.pack(fill="x", padx=GRID, pady=(0, GRID))
 
-        prev_wrap = ctk.CTkFrame(self, fg_color=BOSCH_WHITE, corner_radius=6, border_width=1, border_color=BOSCH_MID_GRAY)
+        prev_wrap = ctk.CTkFrame(self, fg_color=BOSCH_WHITE, corner_radius=8, border_width=1, border_color=BOSCH_MID_GRAY)
         prev_wrap.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
 
         ctk.CTkLabel(
             prev_wrap,
-            text="Data preview — Parameter, Unit, Min / Max / Avg, then ZEIT (time) per measurement row",
+            text="Data preview — parameters × ZEIT (time); Unit, Min, Max, Avg across loaded rows",
             font=font_small(),
             text_color=BOSCH_DARK_GRAY,
         ).pack(anchor="w", padx=GRID, pady=(GRID, 4))
@@ -263,11 +266,11 @@ class UploadPage(BasePage):
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
         if self._path and self._df_raw is not None and not busy:
-            self.run_btn.configure(state="normal", text="▶ Run check")
+            self.run_btn.configure(state="normal", text="Run plausibility check")
         elif busy:
             self.run_btn.configure(state="disabled", text="Working…")
         else:
-            self.run_btn.configure(state="disabled", text="▶ Run check")
+            self.run_btn.configure(state="disabled", text="Run plausibility check")
         self.rerun_btn.configure(state="disabled" if busy else ("normal" if self._path else "disabled"))
 
     def _on_file(self, path: Path) -> None:
@@ -323,7 +326,7 @@ class UploadPage(BasePage):
             self._fill_preview(col_ids, prow)
 
         if not self._busy:
-            self.run_btn.configure(state="normal", text="▶ Run check")
+            self.run_btn.configure(state="normal", text="Run plausibility check")
 
     def _rerun_last(self) -> None:
         s = load_settings()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -35,7 +36,15 @@ from ui.window_icon import apply_window_icon
 
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).resolve().parent.parent
+def _bundle_root() -> Path:
+    if getattr(sys, "frozen", False):
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            return Path(meipass)
+    return Path(__file__).resolve().parent.parent
+
+
+_ROOT = _bundle_root()
 
 _TAB_MAP = {
     "projects": "projects_tab",
@@ -50,8 +59,11 @@ class PlausibilityApp(ctk.CTk):
 
     def __init__(self) -> None:
         ctk.set_appearance_mode("light")
-        # "green" theme avoids blue accent squares on many CTk widgets (vs default "blue").
-        ctk.set_default_color_theme("green")
+        _theme = _bundle_root() / "assets" / "themes" / "bosch_ctk.json"
+        if _theme.is_file():
+            ctk.set_default_color_theme(str(_theme))
+        else:
+            ctk.set_default_color_theme("green")
         super().__init__()
         ensure_theme_ready()
         apply_global_ttk_style(self)

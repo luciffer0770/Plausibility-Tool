@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import customtkinter as ctk
 
-from ui.theme import BOSCH_MID_GRAY, BOSCH_WHITE, GRID, font_body, font_small
+from ui.theme import BOSCH_MID_GRAY, BOSCH_STEEL, BOSCH_WHITE, GRID, font_body, font_small
 
 
 class ParameterDetailPanel(ctk.CTkFrame):
@@ -24,8 +24,10 @@ class ParameterDetailPanel(ctk.CTkFrame):
         self.pack_propagate(False)
         self.title = ctk.CTkLabel(self, text="Parameter detail", font=font_body(), anchor="w")
         self.title.pack(fill="x", padx=GRID, pady=GRID)
-        self.body = ctk.CTkTextbox(self, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.body = ctk.CTkTextbox(self, font=font_small(), border_color=BOSCH_MID_GRAY, height=180)
         self.body.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
+        self.body.insert("1.0", "Select a row in the table for details.")
+        self.body.configure(text_color=BOSCH_STEEL)
 
     def show_measurement(self, m: dict[str, Any]) -> None:
         """Display fields for one measurement."""
@@ -47,4 +49,5 @@ class ParameterDetailPanel(ctk.CTkFrame):
             str(m.get("corrective_action") or "—"),
         ]
         self.body.delete("1.0", "end")
+        self.body.configure(text_color=BOSCH_STEEL)
         self.body.insert("1.0", "\n".join(lines))

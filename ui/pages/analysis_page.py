@@ -20,6 +20,7 @@ from ui.components.results_treeview import ResultsTreeview
 from ui.pages.base_page import BasePage
 from ui.pages.parameter_detail import ParameterDetailPanel
 from ui.theme import (
+    BOSCH_DARK_GRAY,
     BOSCH_LIGHT_GRAY,
     BOSCH_MID_GRAY,
     BOSCH_RED,
@@ -74,52 +75,60 @@ class AnalysisPage(BasePage):
         cards = ctk.CTkFrame(self._content_frame, fg_color="transparent")
         cards.pack(fill="x", padx=GRID, pady=GRID)
 
-        self.card_total = self._mk_card(cards, "TOTAL CHECKED", "0", "#E8E8E8")
-        self.card_pass = self._mk_card(cards, "PASSED", "0", "#E8F5E9")
-        self.card_high = self._mk_card(cards, "ABOVE", "0", "#FDE8E8")
-        self.card_low = self._mk_card(cards, "BELOW LOW", "0", "#FDE8E8")
+        self.card_total = self._mk_card(cards, "TOTAL CHECKED", "0", "#BDBDBD")
+        self.card_pass = self._mk_card(cards, "PASSED", "0", "#C8E6C9")
+        self.card_high = self._mk_card(cards, "ABOVE LIMIT", "0", "#FFCDD2")
+        self.card_low = self._mk_card(cards, "BELOW LIMIT", "0", "#FFCDD2")
 
-        bar = ctk.CTkFrame(self._content_frame, fg_color=BOSCH_LIGHT_GRAY)
-        bar.pack(fill="x", padx=GRID, pady=(0, GRID))
-        self.filter_bar = FilterBar(bar, self._on_filter)
-        self.filter_bar.pack(side="left", fill="x", expand=True)
+        toolbar = ctk.CTkFrame(self._content_frame, fg_color="transparent")
+        toolbar.pack(fill="x", padx=GRID, pady=(0, GRID))
+        toolbar.grid_columnconfigure(0, weight=1)
+
+        self.filter_bar = FilterBar(toolbar, self._on_filter)
+        self.filter_bar.grid(row=0, column=0, sticky="ew", padx=(0, GRID))
+
+        actions = ctk.CTkFrame(toolbar, fg_color="transparent")
+        actions.grid(row=0, column=1, sticky="e")
+        _bh = 36
         ctk.CTkButton(
-            bar,
-            text="EXPORT EXCEL REPORT",
-            width=190,
-            height=40,
+            actions,
+            text="Copy row",
+            width=96,
+            height=_bh,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            hover_color="#EEEEEE",
+            font=font_small(),
+            command=self._copy_selected_row,
+        ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            actions,
+            text="Export failed",
+            width=118,
+            height=_bh,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            hover_color="#EEEEEE",
+            font=font_small(),
+            command=self._export_failed,
+        ).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            actions,
+            text="Excel report…",
+            width=124,
+            height=_bh,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
-            font=font_body(),
+            font=font_small(),
             command=lambda: self.controller.show_page("reports"),
-        ).pack(side="right", padx=4)
-        ctk.CTkButton(
-            bar,
-            text="Export failed rows",
-            width=150,
-            height=40,
-            corner_radius=4,
-            fg_color=BOSCH_WHITE,
-            text_color="#333333",
-            border_width=1,
-            border_color=BOSCH_MID_GRAY,
-            font=font_body(),
-            command=self._export_failed,
-        ).pack(side="right", padx=4)
-        ctk.CTkButton(
-            bar,
-            text="Copy row",
-            width=100,
-            height=40,
-            corner_radius=4,
-            fg_color=BOSCH_WHITE,
-            text_color="#333333",
-            border_width=1,
-            border_color=BOSCH_MID_GRAY,
-            font=font_body(),
-            command=self._copy_selected_row,
-        ).pack(side="right", padx=4)
+        ).pack(side="left", padx=0)
 
         main_card = ctk.CTkFrame(
             self._content_frame,
@@ -227,19 +236,21 @@ class AnalysisPage(BasePage):
         f = ctk.CTkFrame(
             parent,
             fg_color=BOSCH_WHITE,
-            corner_radius=6,
+            corner_radius=8,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
-            width=140,
-            height=76,
+            width=148,
+            height=88,
         )
-        f.pack(side="left", padx=6, pady=2)
+        f.pack(side="left", padx=(0, 8), pady=0)
         f.pack_propagate(False)
-        top = ctk.CTkFrame(f, fg_color=accent, height=4, corner_radius=0)
+        top = ctk.CTkFrame(f, fg_color=accent, height=5, corner_radius=0)
         top.pack(fill="x")
-        ctk.CTkLabel(f, text=title, font=font_small(), text_color="#333333").pack(anchor="w", padx=8, pady=(6, 0))
-        lbl = ctk.CTkLabel(f, text=val, font=("Segoe UI", 20, "bold"), text_color="#333333")
-        lbl.pack(anchor="w", padx=8, pady=(0, 6))
+        ctk.CTkLabel(f, text=title, font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w", padx=10, pady=(10, 2)
+        )
+        lbl = ctk.CTkLabel(f, text=val, font=("Segoe UI", 22, "bold"), text_color=BOSCH_DARK_GRAY)
+        lbl.pack(anchor="w", padx=10, pady=(0, 10))
         return lbl
 
     def on_show(self) -> None:

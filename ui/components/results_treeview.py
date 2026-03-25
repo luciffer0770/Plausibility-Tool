@@ -49,7 +49,7 @@ class ResultsTreeview(ttk.Frame):
             background="#E8E8E8",
             foreground=BOSCH_DARK_GRAY,
         )
-        style.map("Results.Treeview", background=[("selected", "#CCE5FF")])
+        style.map("Results.Treeview", background=[("selected", "#F5D5D5")])
 
         cols = (
             "parameter",

@@ -1,4 +1,4 @@
-"""Browse zone for PUMA files (drag-and-drop optional if tkinterdnd2 + root support)."""
+"""Browse zone for PUMA files — Bosch-styled (no default green)."""
 
 from __future__ import annotations
 
@@ -8,13 +8,13 @@ from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
-from ui.theme import BOSCH_MID_GRAY, BOSCH_STEEL, GRID, font_body, font_small
+from ui.theme import BOSCH_DARK_GRAY, BOSCH_MID_GRAY, BOSCH_RED, BOSCH_STEEL, GRID, font_body, font_small
 
 logger = logging.getLogger(__name__)
 
 
 class FileDropZone(ctk.CTkFrame):
-    """Dashed-style bordered area with browse button."""
+    """Compact bordered area with browse (explicit Bosch red)."""
 
     def __init__(
         self,
@@ -46,12 +46,13 @@ class FileDropZone(ctk.CTkFrame):
 
         self.label = ctk.CTkLabel(
             inner,
-            text="PUMA export — browse for .xlsx / .xls / .csv",
+            text="No file selected",
             font=font_small() if compact else font_body(),
             text_color=BOSCH_STEEL,
-            justify="left" if compact else "center",
+            justify="left",
+            anchor="w",
         )
-        self.label.pack(anchor="w" if compact else "center", pady=(0, GRID if compact else GRID * 2))
+        self.label.pack(anchor="w", pady=(0, GRID if compact else GRID * 2))
 
         ctk.CTkButton(
             inner,
@@ -59,9 +60,12 @@ class FileDropZone(ctk.CTkFrame):
             width=130 if compact else 160,
             height=30 if compact else 34,
             corner_radius=4,
+            fg_color=BOSCH_RED,
+            hover_color="#C40007",
+            text_color="white",
             command=self._browse,
             font=font_small() if compact else font_body(),
-        ).pack(anchor="w" if compact else "center", pady=0)
+        ).pack(anchor="w", pady=0)
 
     def _browse(self) -> None:
         from tkinter import filedialog
@@ -80,7 +84,7 @@ class FileDropZone(ctk.CTkFrame):
         if path.suffix.lower() not in self.extensions:
             logger.warning("Unexpected extension: %s", path.suffix)
         self._path = path
-        self.label.configure(text=f"Selected:\n{path.name}")
+        self.label.configure(text=f"Selected: {path.name}", text_color=BOSCH_DARK_GRAY)
         self.on_path_chosen(path)
 
     def get_path(self) -> Optional[Path]:
