@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from tkinter import filedialog, messagebox
-from typing import Any
+from typing import Any, Optional, Tuple
 
 import customtkinter as ctk
 
@@ -51,7 +51,7 @@ class ReportPage(BasePage):
             font=font_body(),
         ).pack(anchor="w", padx=GRID, pady=8)
 
-    def _session_context(self) -> tuple[int, Path] | None:
+    def _session_context(self) -> Optional[Tuple[int, Path]]:
         sid = self.controller.current_session_id
         proj = self.controller.current_project
         if sid is None or proj is None:

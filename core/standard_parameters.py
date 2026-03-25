@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from typing import List, Optional, Tuple
+
 from core.models import LimitDefinition, ParameterType
 
 # Rows from spec §8: (temp_param, pressure_param, description, turbo_req, na_req)
 # turbo_req / na_req: True = required, False = not applicable, None = optional
-_LAYOUT_ROWS: list[tuple[str | None, str | None, str, bool | None, bool | None]] = [
+_LAYOUT_ROWS: List[Tuple[Optional[str], Optional[str], str, Optional[bool], Optional[bool]]] = [
     ("T0", "P0", "Air inlet before Filter", True, True),
     ("T1", "P1", "Air inlet after filter", True, True),
     ("T2_L1", "P2_L1", "Air inlet Before Turbo", True, False),

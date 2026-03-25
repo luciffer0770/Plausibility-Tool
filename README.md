@@ -4,7 +4,7 @@ Desktop Python application for Bosch engine test bed plausibility checks against
 
 ## Requirements
 
-- Python 3.10+
+- Python 3.9+ (3.10+ recommended)
 - Windows 10/11 (primary target; runs on Linux for development)
 
 ## Run (local)
@@ -14,7 +14,7 @@ pip install -r requirements.txt
 python3 main.py
 ```
 
-Use **Python 3.10+** (on Windows, `py -3 main.py` if `python` is still 2.x).
+Use **Python 3.9+** (on Windows, `py -3 main.py` if `python` is still 2.x). For new envs, prefer **3.10+**.
 
 ## Run in GitHub Codespaces
 
