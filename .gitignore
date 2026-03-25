@@ -10,3 +10,4 @@ build/
 *.spec.bak
 # User-added engine type names (local)
 config/user_engine_types.json
+config/user_limit_categories.json

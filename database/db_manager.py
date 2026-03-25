@@ -144,7 +144,22 @@ class DatabaseManager:
 
     # --- Projects ---
 
+    def project_name_exists(self, name: str, exclude_id: Optional[int] = None) -> bool:
+        nm = (name or "").strip()
+        if not nm:
+            return False
+        with self.sql_session() as c:
+            q = "SELECT 1 FROM projects WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))"
+            params: list[Any] = [nm]
+            if exclude_id is not None:
+                q += " AND id != ?"
+                params.append(exclude_id)
+            row = c.execute(q, params).fetchone()
+        return row is not None
+
     def insert_project(self, project: Project) -> int:
+        if self.project_name_exists(project.name):
+            raise ValueError(f'A project named "{project.name.strip()}" already exists.')
         et = project.engine_type_key()
         with self.sql_session() as c:
             c.execute(

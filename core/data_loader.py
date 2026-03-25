@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from core.puma_constants import COLUMN_ALIAS_MAP, canonical_column_name
+from core.puma_constants import COLUMN_ALIAS_MAP, canonical_column_name, parameter_defaults
 from core.standard_parameters import all_standard_parameter_names
 
 logger = logging.getLogger(__name__)
@@ -233,6 +233,73 @@ def preview_parameters_by_zeit(
     out = pd.DataFrame(data, index=param_cols)
     out.index.name = "Parameter"
     return out
+
+
+def preview_parameters_detailed_table(
+    df: pd.DataFrame,
+    max_runs: int = 12,
+    max_parameters: int = 80,
+) -> Tuple[List[str], List[Tuple[str, str, str, str, str, List[str]]]]:
+    """
+    Build rows for a Treeview preview: Parameter, Unit, Min, Max, Avg, then ZEIT columns.
+
+    Returns (column_ids, rows) where each row is
+    (param, unit, min_s, max_s, avg_s, list of per-run cell strings).
+    """
+    if df.empty:
+        return [], []
+
+    n = min(max_runs, len(df))
+    sub = df.iloc[:n].copy()
+    skip = {"PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME"}
+    param_cols = [
+        c
+        for c in df.columns
+        if str(c).strip().upper() not in {s.upper() for s in skip}
+    ][:max_parameters]
+
+    col_labels: List[str] = []
+    seen: Dict[str, int] = {}
+    for i in range(n):
+        if "ZEIT" in sub.columns:
+            z = sub["ZEIT"].iloc[i]
+            lab = str(z).strip() if pd.notna(z) and str(z).strip() else f"Row {i + 1}"
+        else:
+            lab = f"Row {i + 1}"
+        if lab in seen:
+            seen[lab] += 1
+            lab = f"{lab} ({seen[lab]})"
+        else:
+            seen[lab] = 0
+        col_labels.append(f"ZEIT {lab}")
+
+    def _fmt_cell(v: Any) -> str:
+        if isinstance(v, float) and pd.isna(v):
+            return "—"
+        if isinstance(v, float):
+            return f"{v:.4g}" if abs(v) >= 1e6 or (abs(v) > 0 and abs(v) < 1e-4) else f"{v:.2f}".rstrip("0").rstrip(".")
+        return str(v) if v is not None else "—"
+
+    rows_out: List[Tuple[str, str, str, str, str, List[str]]] = []
+    for raw_col in param_cols:
+        canon = canonical_column_name(str(raw_col))
+        _desc, _cat, _ptype, unit = parameter_defaults(canon)
+        series = pd.to_numeric(sub[raw_col], errors="coerce")
+        valid = series.dropna()
+        if len(valid) == 0:
+            mn_s = mx_s = av_s = "—"
+        else:
+            mn = float(valid.min())
+            mx = float(valid.max())
+            av = float(valid.mean())
+            mn_s = _fmt_cell(mn)
+            mx_s = _fmt_cell(mx)
+            av_s = _fmt_cell(av)
+        cells = [_fmt_cell(sub[raw_col].iloc[i]) for i in range(n)]
+        rows_out.append((canon, unit or "—", mn_s, mx_s, av_s, cells))
+
+    cols = ["Parameter", "Unit", "Min", "Max", "Avg"] + col_labels
+    return cols, rows_out
 
 
 def build_canonical_numeric_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:
