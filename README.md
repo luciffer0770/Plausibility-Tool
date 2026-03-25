@@ -18,28 +18,42 @@ Use **Python 3.10+** (on Windows, `py -3 main.py` if `python` is still 2.x).
 
 ## Run in GitHub Codespaces
 
-PRÜF is a **desktop (Tk) app**. Codespaces are Linux and headless, so the repo includes a **Dev Container** with a small virtual desktop you open in the browser.
+PRÜF is a **desktop (Tk) app**. The dev container runs **Xvfb + Fluxbox + x11vnc + websockify** and serves **noVNC** on port **6080** (replaces the older `desktop-lite` setup, which often failed to connect).
 
-1. On GitHub: **Code → Codespaces → Create codespace** on your branch (uses `.devcontainer/devcontainer.json`).
-2. Wait for **post-create** (installs `python3-tk`, **Xvfb**, and `pip install -r requirements.txt`).
-3. Open the **Ports** tab → port **6080** → open the **noVNC** URL (or use the “Desktop” / forwarded link when notified).
-4. Log in to noVNC with password **`vscode`** (default for `desktop-lite`).
-5. In the **desktop’s terminal** (inside noVNC), run:
+### One-time after pulling these changes
+
+1. **Rebuild the container** so the new Dockerfile runs: Command Palette (`Ctrl+Shift+P`) → **Dev Containers: Rebuild Container** (or recreate the Codespace).
+
+### Every session
+
+1. Create or open a Codespace on a branch that includes `.devcontainer/`.
+2. Wait until the environment is ready ( **`pip install -r requirements.txt`** runs on create).
+3. Open the **Ports** tab → find **6080** → set visibility to **Public** (needed for the browser tab to load reliably).
+4. Click the **globe / Open in browser** link for port **6080**.
+5. You should see the **noVNC** page. Click **Connect** (this setup uses **no VNC password** — dev-only).
+6. **Right‑click the desktop → Terminal** (or open a terminal in Fluxbox) and run:
 
    ```bash
    cd /workspaces/Plausibility-Tool
    python3 main.py
    ```
 
-   The PRÜF window appears **inside that browser desktop**, not in VS Code’s own UI.
+   The integrated VS Code terminal also has `DISPLAY=:99`, so **`python3 main.py` in VS Code** can show the window **if** Xvfb is running (same display as noVNC).
 
-**Headless smoke test only** (no window; useful to see if the app starts):
+**Troubleshooting**
+
+```bash
+./scripts/check_novnc.sh
+tail -50 /tmp/pruf-desktop.log
+```
+
+If port 6080 is closed, restart the stack: `nohup /usr/local/bin/start-pruf-desktop.sh &` (then wait a few seconds and refresh the browser).
+
+**Headless smoke test** (no GUI):
 
 ```bash
 ./scripts/run_headless.sh
 ```
-
-If your organisation disables the **desktop-lite** feature, ask them to allow it for this repo, or develop on a **local Windows** machine instead.
 
 Modal dialogs use a deferred `grab_set` so they work on **noVNC / remote X** where “window not viewable” errors can occur.
 

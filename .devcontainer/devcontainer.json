@@ -1,14 +1,14 @@
 {
-  "name": "PRÜF (Python + GUI)",
-  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/desktop-lite:1": {
-      "password": "vscode",
-      "webPort": "6080",
-      "vncPort": "5901"
-    }
+  "name": "PRÜF (Python + noVNC)",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
   },
-  "postCreateCommand": "sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y python3-tk xvfb && pip install --no-cache-dir -r requirements.txt",
+  "remoteEnv": {
+    "DISPLAY": ":99"
+  },
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
+  "postStartCommand": "nohup /usr/local/bin/start-pruf-desktop.sh </dev/null >>/tmp/pruf-desktop.log 2>&1 & sleep 3",
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python"],
@@ -20,7 +20,8 @@
   "forwardPorts": [6080],
   "portsAttributes": {
     "6080": {
-      "label": "noVNC (desktop for PRÜF)",
+      "label": "noVNC — open this in browser for PRÜF",
+      "visibility": "public",
       "onAutoForward": "notify"
     }
   }
