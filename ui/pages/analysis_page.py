@@ -1,7 +1,8 @@
-"""RESULTS tab: summary + table + charts."""
+"""RESULTS tab: summary, ttk results table, collapsible analytics."""
 
 from __future__ import annotations
 
+import tkinter as tk
 from typing import Any, Optional
 
 import customtkinter as ctk
@@ -10,8 +11,8 @@ from matplotlib.figure import Figure
 
 from core.analysis_service import measurements_to_summary_counts, sort_measurement_results
 from database.db_manager import DatabaseManager
-from ui.components.data_table import DataTable
 from ui.components.filter_bar import FilterBar
+from ui.components.results_treeview import ResultsTreeview
 from ui.pages.base_page import BasePage
 from ui.pages.parameter_detail import ParameterDetailPanel
 from ui.theme import (
@@ -28,13 +29,13 @@ from ui.theme import (
 
 
 class AnalysisPage(BasePage):
-    """Plausibility results."""
+    """Plausibility results — fast Treeview + optional chart strip."""
 
     def __init__(self, parent: ctk.CTkFrame, controller: Any) -> None:
         super().__init__(parent, controller)
         self._all_rows: list[dict[str, Any]] = []
-        # Do not use name _canvas — CTkFrame reserves it for internal drawing.
         self._mpl_canvas: Any = None
+        self._charts_expanded = ctk.BooleanVar(value=True)
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -64,38 +65,70 @@ class AnalysisPage(BasePage):
             command=lambda: self.controller.show_page("reports"),
         ).pack(side="right", padx=8)
 
-        split = ctk.CTkFrame(self, fg_color="transparent")
-        split.pack(fill="both", expand=True, padx=GRID, pady=0)
+        main_card = ctk.CTkFrame(
+            self,
+            fg_color=BOSCH_WHITE,
+            corner_radius=8,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+        )
+        main_card.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
 
-        self.table = DataTable(split, on_row_click=self._on_row)
-        self.table.pack(side="left", fill="both", expand=True)
+        split = ctk.CTkFrame(main_card, fg_color="transparent")
+        split.pack(fill="both", expand=True, padx=GRID, pady=GRID)
+
+        tk_host = tk.Frame(split, bg=BOSCH_WHITE, highlightthickness=0)
+        tk_host.pack(side="left", fill="both", expand=True, padx=(0, GRID))
+
+        self.table = ResultsTreeview(tk_host, on_row_select=self._on_row)
+        self.table.pack(fill="both", expand=True)
 
         self.detail = ParameterDetailPanel(split)
-        self.detail.pack(side="right", fill="y", padx=(GRID, 0))
+        self.detail.pack(side="right", fill="y")
 
-        charts = ctk.CTkFrame(
-            self,
+        self._charts_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self._charts_frame.pack(fill="x", padx=GRID, pady=(0, GRID))
+
+        toggle_row = ctk.CTkFrame(self._charts_frame, fg_color="transparent")
+        toggle_row.pack(fill="x", pady=(0, 4))
+        ctk.CTkCheckBox(
+            toggle_row,
+            text="Show failure charts",
+            variable=self._charts_expanded,
+            command=self._toggle_charts,
+            font=font_small(),
+        ).pack(side="left")
+
+        self._charts_inner = ctk.CTkFrame(
+            self._charts_frame,
             fg_color=BOSCH_WHITE,
             corner_radius=6,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
         )
-        charts.pack(fill="x", padx=GRID, pady=GRID)
 
-        left = ctk.CTkFrame(charts, fg_color=BOSCH_WHITE)
+        left = ctk.CTkFrame(self._charts_inner, fg_color=BOSCH_WHITE)
         left.pack(side="left", fill="both", expand=True, padx=GRID, pady=GRID)
         ctk.CTkLabel(left, text="Failure distribution by type", font=font_body()).pack(anchor="w")
-        self.fig = Figure(figsize=(4, 2.2), dpi=100)
+        self.fig = Figure(figsize=(4, 2.0), dpi=100)
         self.ax = self.fig.add_subplot(111)
         self._mpl_canvas = FigureCanvasTkAgg(self.fig, master=left)
         self._mpl_canvas.get_tk_widget().pack(fill="both", expand=True)
 
-        right = ctk.CTkFrame(charts, fg_color=BOSCH_WHITE, width=260)
+        right = ctk.CTkFrame(self._charts_inner, fg_color=BOSCH_WHITE, width=240)
         right.pack(side="right", fill="y", padx=GRID, pady=GRID)
         right.pack_propagate(False)
         ctk.CTkLabel(right, text="Top failed parameters", font=font_body()).pack(anchor="w")
-        self.top_fail_box = ctk.CTkTextbox(right, height=120, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.top_fail_box = ctk.CTkTextbox(right, height=100, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.top_fail_box.pack(fill="both", expand=True)
+
+        self._charts_inner.pack(fill="x", pady=0)
+
+    def _toggle_charts(self) -> None:
+        if self._charts_expanded.get():
+            self._charts_inner.pack(fill="x", pady=0)
+        else:
+            self._charts_inner.pack_forget()
 
     def _mk_card(self, parent: ctk.CTkFrame, title: str, val: str, accent: str) -> ctk.CTkLabel:
         f = ctk.CTkFrame(
@@ -105,15 +138,15 @@ class AnalysisPage(BasePage):
             border_width=1,
             border_color=BOSCH_MID_GRAY,
             width=140,
-            height=72,
+            height=76,
         )
         f.pack(side="left", padx=6, pady=2)
         f.pack_propagate(False)
         top = ctk.CTkFrame(f, fg_color=accent, height=4, corner_radius=0)
         top.pack(fill="x")
-        ctk.CTkLabel(f, text=title, font=font_small(), text_color="#333333").pack(anchor="w", padx=8, pady=(4, 0))
-        lbl = ctk.CTkLabel(f, text=val, font=("Segoe UI", 18, "bold"), text_color="#333333")
-        lbl.pack(anchor="w", padx=8)
+        ctk.CTkLabel(f, text=title, font=font_small(), text_color="#333333").pack(anchor="w", padx=8, pady=(6, 0))
+        lbl = ctk.CTkLabel(f, text=val, font=("Segoe UI", 20, "bold"), text_color="#333333")
+        lbl.pack(anchor="w", padx=8, pady=(0, 6))
         return lbl
 
     def on_show(self) -> None:
@@ -188,15 +221,12 @@ class AnalysisPage(BasePage):
 
     def _update_charts(self) -> None:
         by_cat: dict[str, int] = {}
-        fails: list[tuple[str, int]] = []
         for r in self._all_rows:
             st = str(r.get("status", ""))
             if st not in ("HIGH", "LOW", "FAIL"):
                 continue
             cat = str(r.get("category") or "Other")
             by_cat[cat] = by_cat.get(cat, 0) + 1
-            name = str(r.get("parameter_name", ""))
-            fails.append((name, 1))
 
         self.ax.clear()
         if by_cat:
@@ -205,7 +235,8 @@ class AnalysisPage(BasePage):
             self.ax.barh(names, vals, color=BOSCH_RED)
             self.ax.set_xlabel("Count")
         else:
-            self.ax.text(0.5, 0.5, "No failures", ha="center", va="center")
+            self.ax.text(0.5, 0.5, "No failures", ha="center", va="center", fontsize=10, color="#888888")
+            self.ax.set_axis_off()
         self.fig.tight_layout()
         if self._mpl_canvas:
             self._mpl_canvas.draw()

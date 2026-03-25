@@ -1,10 +1,11 @@
-"""LIMITS CONFIG tab: editable table (reference-style)."""
+"""LIMITS CONFIG — ttk.Treeview list + detail panel (fast; no full rebuild on add row)."""
 
 from __future__ import annotations
 
 import logging
+import tkinter as tk
 from pathlib import Path
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, ttk
 from typing import Any, List, Optional
 
 import customtkinter as ctk
@@ -25,7 +26,6 @@ from ui.theme import (
     BOSCH_RED,
     BOSCH_WHITE,
     GRID,
-    STATUS_OK,
     font_body,
     font_small,
 )
@@ -40,154 +40,24 @@ _TYPE_SHORT = {
     ParameterType.SET: "Set",
     ParameterType.OTHER: "Other",
 }
+_SHORT_TO_PT = {v: k for k, v in _TYPE_SHORT.items()}
 
 
 def _type_from_short(s: str) -> ParameterType:
-    for pt, short in _TYPE_SHORT.items():
-        if short == s:
-            return pt
-    return ParameterType.OTHER
-
-
-class _LimitTableRow:
-    """One data row in the limits grid."""
-
-    def __init__(
-        self,
-        parent: ctk.CTkFrame,
-        row_idx: int,
-        d: LimitDefinition,
-        on_enabled_toggle: Any,
-        original_name: str,
-    ) -> None:
-        self._original_name = original_name
-        self._on_enabled = on_enabled_toggle
-        bg = "#F7F7F7" if row_idx % 2 == 0 else BOSCH_WHITE
-        self.frame = ctk.CTkFrame(parent, fg_color=bg, corner_radius=0)
-
-        short = _TYPE_SHORT.get(d.parameter_type, "Other")
-        self.type_var = ctk.StringVar(value=short)
-
-        ctk.CTkLabel(self.frame, text=f"{row_idx + 1:02d}", width=36, font=font_small(), text_color=BOSCH_DARK_GRAY).grid(
-            row=0, column=0, padx=2, pady=2, sticky="w"
-        )
-        self.label_e = ctk.CTkEntry(self.frame, width=88, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.label_e.insert(0, d.parameter_name)
-        self.label_e.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
-
-        self.type_m = ctk.CTkOptionMenu(
-            self.frame,
-            values=list(_TYPE_SHORT.values()),
-            variable=self.type_var,
-            width=72,
-            height=28,
-            font=font_small(),
-            command=lambda _v: self._apply_type_color(),
-        )
-        self.type_m.grid(row=0, column=2, padx=2, pady=2, sticky="w")
-        self._apply_type_color()
-
-        self.desc_e = ctk.CTkEntry(self.frame, width=160, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.desc_e.insert(0, d.description)
-        self.desc_e.grid(row=0, column=3, padx=2, pady=2, sticky="ew")
-
-        self.cat_e = ctk.CTkEntry(self.frame, width=100, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.cat_e.insert(0, d.category or "")
-        self.cat_e.grid(row=0, column=4, padx=2, pady=2, sticky="ew")
-
-        self.lo_e = ctk.CTkEntry(self.frame, width=72, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        if d.lower_limit is not None:
-            self.lo_e.insert(0, str(d.lower_limit))
-        self.lo_e.grid(row=0, column=5, padx=2, pady=2, sticky="ew")
-
-        self.hi_e = ctk.CTkEntry(self.frame, width=72, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        if d.upper_limit is not None:
-            self.hi_e.insert(0, str(d.upper_limit))
-        self.hi_e.grid(row=0, column=6, padx=2, pady=2, sticky="ew")
-
-        self.unit_e = ctk.CTkEntry(self.frame, width=52, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.unit_e.insert(0, d.unit)
-        self.unit_e.grid(row=0, column=7, padx=2, pady=2, sticky="ew")
-
-        self.rc_e = ctk.CTkEntry(self.frame, width=180, height=28, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.rc_e.insert(0, d.root_cause)
-        self.rc_e.grid(row=0, column=8, padx=2, pady=2, sticky="ew")
-
-        self.enabled_var = ctk.BooleanVar(value=d.is_enabled)
-        self.en_cb = ctk.CTkCheckBox(
-            self.frame,
-            text="",
-            variable=self.enabled_var,
-            width=28,
-            command=lambda: self._on_enabled(self),
-        )
-        self.en_cb.grid(row=0, column=9, padx=4, pady=2)
-
-        self.wp_hidden = d.warning_pct
-        self.ca_hidden = d.corrective_action
-        self.req_hidden = d.is_required
-
-        for c in range(10):
-            self.frame.grid_columnconfigure(c, weight=1 if c in (3, 8) else 0)
-
-    def _apply_type_color(self) -> None:
-        s = self.type_var.get()
-        color = BOSCH_RED if s == "Temp" else "#0066CC" if s == "Press" else BOSCH_DARK_GRAY
-        self.type_m.configure(text_color=color)
-
-    def set_enabled_style(self, enabled: bool) -> None:
-        state = "normal" if enabled else "disabled"
-        for w in (
-            self.label_e,
-            self.type_m,
-            self.desc_e,
-            self.cat_e,
-            self.lo_e,
-            self.hi_e,
-            self.unit_e,
-            self.rc_e,
-        ):
-            w.configure(state=state)
-
-    def to_definition(self) -> LimitDefinition:
-        pt = _type_from_short(self.type_var.get())
-        lo = self._parse_float(self.lo_e.get())
-        hi = self._parse_float(self.hi_e.get())
-        return LimitDefinition(
-            parameter_name=self.label_e.get().strip(),
-            parameter_type=pt,
-            description=self.desc_e.get().strip(),
-            category=self.cat_e.get().strip(),
-            unit=self.unit_e.get().strip(),
-            lower_limit=lo,
-            upper_limit=hi,
-            warning_pct=float(self.wp_hidden),
-            root_cause=self.rc_e.get().strip(),
-            corrective_action=self.ca_hidden or "",
-            is_required=self.req_hidden,
-            is_enabled=self.enabled_var.get(),
-        )
-
-    @staticmethod
-    def _parse_float(s: str) -> Any:
-        s = s.strip()
-        if not s:
-            return None
-        try:
-            return float(s.replace(",", "."))
-        except ValueError:
-            return None
+    return _SHORT_TO_PT.get(s, ParameterType.OTHER)
 
 
 class ProfileEditorPage(BasePage):
-    """LIMITS CONFIG — full editable table."""
+    """Tree list (fast) + right-side editor for the selected limit row."""
 
     def __init__(self, parent: ctk.CTkFrame, controller: Any) -> None:
         super().__init__(parent, controller)
-        self._all_defs: list[LimitDefinition] = []
-        self._rows: List[_LimitTableRow] = []
+        self._all_defs: List[LimitDefinition] = []
+        self._selected_index: Optional[int] = None
         self.engine_override = ctk.StringVar()
         self.cat_filter = ctk.StringVar(value="All")
+        self._tree: Optional[ttk.Treeview] = None
+        self._tk_wrap: Optional[tk.Frame] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -210,9 +80,9 @@ class ProfileEditorPage(BasePage):
         ctk.CTkLabel(bar, text="CATEGORY:", font=font_body()).pack(side="left", padx=(GRID, 4))
         ctk.CTkOptionMenu(
             bar,
-            values=["All", "Temperature", "Pressure", "Emission", "Combustion", "Other"],
+            values=["All", "Temperature", "Pressure", "Emission", "Combustion", "Other", "Set"],
             variable=self.cat_filter,
-            command=lambda _v: self._rebuild_table(),
+            command=lambda _v: self._rebuild_tree_only(),
             width=140,
             font=font_body(),
         ).pack(side="left", padx=4)
@@ -242,31 +112,264 @@ class ProfileEditorPage(BasePage):
                 side="left", padx=4
             )
 
-        self.table_wrap = ctk.CTkFrame(self, fg_color=BOSCH_WHITE, corner_radius=8, border_width=1, border_color=BOSCH_MID_GRAY)
-        self.table_wrap.pack(fill="both", expand=True, padx=GRID, pady=GRID)
+        paned = ctk.CTkFrame(self, fg_color="transparent")
+        paned.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
 
-        hdr = ctk.CTkFrame(self.table_wrap, fg_color="#EEEEEE", corner_radius=0)
-        hdr.pack(fill="x")
-        labels = (
-            "#",
-            "LABEL",
-            "TYPE",
-            "DESCRIPTION",
-            "CATEGORY",
-            "LOWER",
-            "UPPER",
-            "UNIT",
-            "ROOT CAUSE",
-            "ON",
+        left_card = ctk.CTkFrame(paned, fg_color=BOSCH_WHITE, corner_radius=8, border_width=1, border_color=BOSCH_MID_GRAY)
+        left_card.pack(side="left", fill="both", expand=True, padx=(0, GRID))
+
+        ctk.CTkLabel(
+            left_card,
+            text="Parameters (click a row to edit on the right)",
+            font=font_small(),
+            text_color=BOSCH_DARK_GRAY,
+        ).pack(anchor="w", padx=GRID, pady=(GRID, 4))
+
+        self._tk_wrap = tk.Frame(left_card, bg=BOSCH_WHITE, highlightthickness=0)
+        self._tk_wrap.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
+
+        style = ttk.Style(self._tk_wrap)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(
+            "Limits.Treeview",
+            rowheight=22,
+            fieldbackground=BOSCH_WHITE,
+            background=BOSCH_WHITE,
+            foreground=BOSCH_DARK_GRAY,
         )
-        widths = (36, 88, 72, 160, 100, 72, 72, 52, 180, 40)
-        for i, (lb, w) in enumerate(zip(labels, widths)):
-            ctk.CTkLabel(hdr, text=lb, width=w, font=font_small(), text_color=BOSCH_DARK_GRAY, anchor="w").grid(
-                row=0, column=i, padx=2, pady=6, sticky="w"
+        style.configure(
+            "Limits.Treeview.Heading",
+            font=("Segoe UI", 9, "bold"),
+            background="#EEEEEE",
+            foreground=BOSCH_DARK_GRAY,
+        )
+
+        cols = ("num", "label", "type", "desc", "cat", "lo", "hi", "unit", "on")
+        self._tree = ttk.Treeview(
+            self._tk_wrap,
+            columns=cols,
+            show="headings",
+            selectmode="browse",
+            style="Limits.Treeview",
+            height=18,
+        )
+        hw = {
+            "num": ("#", 32),
+            "label": ("Label", 72),
+            "type": ("Type", 48),
+            "desc": ("Description", 140),
+            "cat": ("Category", 88),
+            "lo": ("Lower", 56),
+            "hi": ("Upper", 56),
+            "unit": ("Unit", 40),
+            "on": ("ON", 28),
+        }
+        for c, (t, w) in hw.items():
+            self._tree.heading(c, text=t, anchor="w")
+            self._tree.column(c, width=w, minwidth=28, anchor="w", stretch=True)
+
+        vsb = ttk.Scrollbar(self._tk_wrap, orient="vertical", command=self._tree.yview)
+        hsb = ttk.Scrollbar(self._tk_wrap, orient="horizontal", command=self._tree.xview)
+        self._tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        self._tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        self._tk_wrap.grid_rowconfigure(0, weight=1)
+        self._tk_wrap.grid_columnconfigure(0, weight=1)
+
+        self._tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self._tree.bind("<Double-1>", self._on_tree_double)
+
+        right_card = ctk.CTkFrame(paned, fg_color=BOSCH_WHITE, corner_radius=8, border_width=1, border_color=BOSCH_MID_GRAY, width=320)
+        right_card.pack(side="right", fill="y")
+        right_card.pack_propagate(False)
+
+        ctk.CTkLabel(right_card, text="Edit selected row", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w", padx=GRID, pady=(GRID, 8)
+        )
+
+        self._e_label = ctk.CTkEntry(right_card, placeholder_text="Parameter label", width=260, font=font_small())
+        self._e_type = ctk.CTkOptionMenu(right_card, values=list(_TYPE_SHORT.values()), width=260, font=font_small())
+        self._e_desc = ctk.CTkEntry(right_card, placeholder_text="Description", width=260, font=font_small())
+        self._e_cat = ctk.CTkEntry(right_card, placeholder_text="Category", width=260, font=font_small())
+        self._e_lo = ctk.CTkEntry(right_card, placeholder_text="Lower limit", width=260, font=font_small())
+        self._e_hi = ctk.CTkEntry(right_card, placeholder_text="Upper limit", width=260, font=font_small())
+        self._e_unit = ctk.CTkEntry(right_card, placeholder_text="Unit", width=260, font=font_small())
+        self._e_rc = ctk.CTkEntry(right_card, placeholder_text="Root cause if out of range", width=260, font=font_small())
+        self._en_var = ctk.BooleanVar(value=True)
+        self._en_cb = ctk.CTkCheckBox(right_card, text="Enabled (include in check)", variable=self._en_var, font=font_small())
+
+        for lb, w in (
+            ("Label", self._e_label),
+            ("Type", self._e_type),
+            ("Description", self._e_desc),
+            ("Category", self._e_cat),
+            ("Lower limit", self._e_lo),
+            ("Upper limit", self._e_hi),
+            ("Unit", self._e_unit),
+            ("Root cause", self._e_rc),
+        ):
+            ctk.CTkLabel(right_card, text=lb, font=font_small(), text_color=BOSCH_DARK_GRAY).pack(anchor="w", padx=GRID)
+            w.pack(anchor="w", padx=GRID, pady=(0, 6))
+        self._en_cb.pack(anchor="w", padx=GRID, pady=6)
+
+        ctk.CTkButton(
+            right_card,
+            text="Apply to row",
+            width=200,
+            height=32,
+            corner_radius=4,
+            fg_color=BOSCH_RED,
+            font=font_body(),
+            command=self._apply_detail_to_def,
+        ).pack(anchor="w", padx=GRID, pady=GRID)
+        ctk.CTkLabel(
+            right_card,
+            text="Tip: double-click the ON column to toggle enabled.",
+            font=font_small(),
+            text_color=BOSCH_MID_GRAY,
+            wraplength=280,
+        ).pack(anchor="w", padx=GRID, pady=(0, GRID))
+
+    def _passes_filter(self, d: LimitDefinition) -> bool:
+        cat = self.cat_filter.get()
+        if cat == "All":
+            return True
+        return d.parameter_type.value == cat
+
+    def _rebuild_tree_only(self) -> None:
+        if self._tree is None:
+            return
+        self._flush_detail_to_selection()
+        self._tree.delete(*self._tree.get_children())
+        self._selected_index = None
+        shown = 0
+        for i, d in enumerate(self._all_defs):
+            if not self._passes_filter(d):
+                continue
+            shown += 1
+            short = _TYPE_SHORT.get(d.parameter_type, "Other")
+            self._tree.insert(
+                "",
+                "end",
+                iid=str(i),
+                values=(
+                    f"{shown:02d}",
+                    d.parameter_name,
+                    short,
+                    (d.description or "")[:42],
+                    (d.category or "")[:22],
+                    "" if d.lower_limit is None else str(d.lower_limit),
+                    "" if d.upper_limit is None else str(d.upper_limit),
+                    d.unit or "",
+                    "Y" if d.is_enabled else "·",
+                ),
             )
 
-        self.scroll = ctk.CTkScrollableFrame(self.table_wrap, fg_color=BOSCH_WHITE)
-        self.scroll.pack(fill="both", expand=True)
+    def _on_tree_select(self, _e: object) -> None:
+        if not self._tree:
+            return
+        sel = self._tree.selection()
+        if not sel:
+            return
+        try:
+            idx = int(sel[0])
+        except ValueError:
+            return
+        self._flush_detail_to_selection()
+        self._selected_index = idx
+        if 0 <= idx < len(self._all_defs):
+            self._load_detail(self._all_defs[idx])
+
+    def _on_tree_double(self, _e: object) -> None:
+        """Double-click ON column toggles enabled."""
+        if not self._tree:
+            return
+        region = self._tree.identify_region(_e.x, _e.y)
+        if region != "cell":
+            return
+        col = self._tree.identify_column(_e.x)
+        if col != "#9":
+            return
+        sel = self._tree.selection()
+        if not sel:
+            return
+        try:
+            idx = int(sel[0])
+        except ValueError:
+            return
+        if 0 <= idx < len(self._all_defs):
+            self._all_defs[idx].is_enabled = not self._all_defs[idx].is_enabled
+            self._rebuild_tree_only()
+            self._tree.selection_set(str(idx))
+            self._load_detail(self._all_defs[idx])
+
+    def _load_detail(self, d: LimitDefinition) -> None:
+        self._e_label.delete(0, "end")
+        self._e_label.insert(0, d.parameter_name if not d.parameter_name.startswith("__new__") else "")
+        self._e_type.set(_TYPE_SHORT.get(d.parameter_type, "Other"))
+        self._e_desc.delete(0, "end")
+        self._e_desc.insert(0, d.description or "")
+        self._e_cat.delete(0, "end")
+        self._e_cat.insert(0, d.category or "")
+        self._e_lo.delete(0, "end")
+        if d.lower_limit is not None:
+            self._e_lo.insert(0, str(d.lower_limit))
+        self._e_hi.delete(0, "end")
+        if d.upper_limit is not None:
+            self._e_hi.insert(0, str(d.upper_limit))
+        self._e_unit.delete(0, "end")
+        self._e_unit.insert(0, d.unit or "")
+        self._e_rc.delete(0, "end")
+        self._e_rc.insert(0, d.root_cause or "")
+        self._en_var.set(d.is_enabled)
+
+    def _flush_detail_to_selection(self) -> None:
+        if self._selected_index is None:
+            return
+        idx = self._selected_index
+        if idx < 0 or idx >= len(self._all_defs):
+            return
+        d = self._all_defs[idx]
+        label = self._e_label.get().strip()
+        if not label and d.parameter_name.startswith("__new__"):
+            label = d.parameter_name
+        elif not label:
+            return
+        d.parameter_name = label
+        d.parameter_type = _type_from_short(self._e_type.get())
+        d.description = self._e_desc.get().strip()
+        d.category = self._e_cat.get().strip()
+        d.unit = self._e_unit.get().strip()
+        d.root_cause = self._e_rc.get().strip()
+        d.lower_limit = self._parse_float(self._e_lo.get())
+        d.upper_limit = self._parse_float(self._e_hi.get())
+        d.is_enabled = self._en_var.get()
+
+    def _apply_detail_to_def(self) -> None:
+        if self._selected_index is None:
+            messagebox.showinfo("PRÜF", "Select a row in the table first.")
+            return
+        self._flush_detail_to_selection()
+        self._rebuild_tree_only()
+        if self._tree and self._selected_index is not None:
+            iid = str(self._selected_index)
+            if self._tree.exists(iid):
+                self._tree.selection_set(iid)
+                self._tree.see(iid)
+
+    @staticmethod
+    def _parse_float(s: str) -> Any:
+        s = s.strip()
+        if not s:
+            return None
+        try:
+            return float(s.replace(",", "."))
+        except ValueError:
+            return None
 
     def on_show(self) -> None:
         proj = self.controller.current_project
@@ -280,58 +383,20 @@ class ProfileEditorPage(BasePage):
     def _load_engine_profile(self) -> None:
         db: DatabaseManager = self.controller.db
         self._all_defs = db.get_limit_profile(self._engine_type_value())
-        self._rebuild_table()
+        self._selected_index = None
+        self._rebuild_tree_only()
 
-    def _rebuild_table(self) -> None:
-        for w in self.scroll.winfo_children():
-            w.destroy()
-        self._rows.clear()
-        cat = self.cat_filter.get()
-        filtered: list[LimitDefinition] = []
-        for d in self._all_defs:
-            if cat != "All" and d.parameter_type.value != cat:
-                continue
-            filtered.append(d)
-        for i, d in enumerate(filtered):
-            orig = d.parameter_name
-            row = _LimitTableRow(self.scroll, i, d, self._on_enabled_toggle, original_name=orig)
-            row.frame.pack(fill="x")
-            self._rows.append(row)
-            row.set_enabled_style(d.is_enabled)
-
-    def _on_enabled_toggle(self, row: _LimitTableRow) -> None:
-        on = row.enabled_var.get()
-        row.set_enabled_style(on)
-
-    def _collect_definitions(self) -> list[LimitDefinition]:
-        """Merge visible table rows into full profile (respects category filter)."""
-        by_old: dict[str, LimitDefinition] = {}
-        for r in self._rows:
-            d = r.to_definition()
-            if not d.parameter_name:
-                messagebox.showwarning("PRÜF", "Every row needs a parameter label.")
-                return []
-            by_old[r._original_name] = d
-
-        out: list[LimitDefinition] = []
-        seen_new: set[str] = set()
-        for d in self._all_defs:
-            key = d.parameter_name
-            if key in by_old:
-                nd = by_old[key]
-                out.append(nd)
-                seen_new.add(nd.parameter_name)
-            else:
-                out.append(d)
-        for old, nd in by_old.items():
-            if old not in {x.parameter_name for x in self._all_defs}:
-                out.append(nd)
-                seen_new.add(nd.parameter_name)
-        names = [x.parameter_name for x in out]
+    def _collect_definitions(self) -> List[LimitDefinition]:
+        self._flush_detail_to_selection()
+        names = [x.parameter_name for x in self._all_defs]
         if len(names) != len(set(names)):
             messagebox.showwarning("PRÜF", "Duplicate parameter labels.")
             return []
-        return out
+        for d in self._all_defs:
+            if not d.parameter_name or d.parameter_name.startswith("__new__"):
+                messagebox.showwarning("PRÜF", "Every row needs a parameter label (use Edit panel).")
+                return []
+        return list(self._all_defs)
 
     def _save(self) -> None:
         defs = self._collect_definitions()
@@ -340,6 +405,7 @@ class ProfileEditorPage(BasePage):
         self.controller.db.replace_limit_profile(self._engine_type_value(), defs)
         self._all_defs = defs
         messagebox.showinfo("PRÜF", "All limits saved.")
+        self._rebuild_tree_only()
         logger.info("Saved profile %s (%s rows)", self._engine_type_value(), len(defs))
 
     def _export_json(self) -> None:
@@ -403,6 +469,7 @@ class ProfileEditorPage(BasePage):
         ctk.CTkButton(dlg, text="Clone", command=do_clone, corner_radius=4).pack(pady=GRID)
 
     def _add_blank_row(self) -> None:
+        self._flush_detail_to_selection()
         n = sum(1 for d in self._all_defs if d.parameter_name.startswith("__new__"))
         blank = LimitDefinition(
             parameter_name=f"__new__{n + 1}",
@@ -412,4 +479,12 @@ class ProfileEditorPage(BasePage):
             is_enabled=True,
         )
         self._all_defs.append(blank)
-        self._rebuild_table()
+        new_i = len(self._all_defs) - 1
+        if not self._passes_filter(blank):
+            self.cat_filter.set("All")
+        self._rebuild_tree_only()
+        if self._tree:
+            self._tree.selection_set(str(new_i))
+            self._tree.see(str(new_i))
+            self._selected_index = new_i
+            self._load_detail(blank)

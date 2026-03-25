@@ -138,7 +138,7 @@ def load_puma_file(file_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         row1 = df.iloc[0]
         if _row_looks_like_units(row1, num_candidates):
             df = df.iloc[1:].reset_index(drop=True)
-            logger.info("Dropped units row (row 1)")
+            logger.debug("Dropped units row (row 1)")
 
     for c in df.columns:
         if c in ("PRNAME", "DATUM", "ZEIT", "VERSIONT"):

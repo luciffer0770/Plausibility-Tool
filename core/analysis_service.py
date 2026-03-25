@@ -22,7 +22,7 @@ from database.db_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
-_MAX_VALUES_SAMPLE = 40
+_MAX_VALUES_SAMPLE = 12
 
 
 def _format_values_sample(vals: List[float]) -> str:

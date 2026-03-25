@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import tkinter as tk
 from pathlib import Path
 from tkinter import messagebox
 from typing import Any, Optional
@@ -102,8 +103,29 @@ class UploadPage(BasePage):
             text_color=BOSCH_DARK_GRAY,
         ).pack(anchor="w", padx=GRID, pady=(GRID, 4))
 
-        self.preview = ctk.CTkTextbox(prev_wrap, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.preview.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
+        self._preview_host = tk.Frame(prev_wrap, bg=BOSCH_WHITE, highlightthickness=0)
+        self._preview_host.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
+        self.preview = tk.Text(
+            self._preview_host,
+            height=16,
+            wrap="none",
+            font=("Consolas", 9),
+            bg=BOSCH_WHITE,
+            fg=BOSCH_DARK_GRAY,
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground=BOSCH_MID_GRAY,
+            selectbackground="#CCE5FF",
+        )
+        pv_sb_y = tk.Scrollbar(self._preview_host, orient="vertical", command=self.preview.yview)
+        pv_sb_x = tk.Scrollbar(self._preview_host, orient="horizontal", command=self.preview.xview)
+        self.preview.configure(yscrollcommand=pv_sb_y.set, xscrollcommand=pv_sb_x.set)
+        self.preview.grid(row=0, column=0, sticky="nsew")
+        pv_sb_y.grid(row=0, column=1, sticky="ns")
+        pv_sb_x.grid(row=1, column=0, sticky="ew")
+        self._preview_host.grid_rowconfigure(0, weight=1)
+        self._preview_host.grid_columnconfigure(0, weight=1)
 
     def _on_file(self, path: Path) -> None:
         self._path = path
@@ -153,12 +175,12 @@ class UploadPage(BasePage):
         self.summary.delete("1.0", "end")
         self.summary.insert("1.0", "\n".join(lines))
 
-        prev_df = preview_parameters_by_zeit(df, max_runs=25, max_parameters=100)
+        prev_df = preview_parameters_by_zeit(df, max_runs=20, max_parameters=60)
         self.preview.delete("1.0", "end")
         if prev_df.empty:
             self.preview.insert("1.0", "(No parameter columns to preview)")
         else:
-            self.preview.insert("1.0", prev_df.to_string(max_cols=30))
+            self.preview.insert("1.0", prev_df.to_string(max_cols=24))
 
         self.run_btn.configure(state="normal")
 
