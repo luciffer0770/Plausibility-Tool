@@ -69,6 +69,9 @@ class ProfileEditorPage(BasePage):
         self._limits_dirty: bool = False
         self._save_status: Optional[ctk.CTkLabel] = None
         self._engine_menu: Optional[ctk.CTkOptionMenu] = None
+        self._e_cat_combo: Optional[ctk.CTkComboBox] = None
+        self._en_on_var = ctk.StringVar(value="Yes")
+        self._seg_on: Optional[ctk.CTkSegmentedButton] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -240,19 +243,28 @@ class ProfileEditorPage(BasePage):
         self._e_label = ctk.CTkEntry(right_card, placeholder_text="Parameter label", width=260, font=font_small())
         self._e_type = ctk.CTkOptionMenu(right_card, values=list(_TYPE_SHORT.values()), width=260, font=font_small())
         self._e_desc = ctk.CTkEntry(right_card, placeholder_text="Description", width=260, font=font_small())
-        self._e_cat = ctk.CTkEntry(right_card, placeholder_text="Category", width=260, font=font_small())
+        self._e_cat_combo = ctk.CTkComboBox(
+            right_card,
+            values=self._edit_category_values(),
+            width=260,
+            height=32,
+            font=font_small(),
+            border_color=BOSCH_MID_GRAY,
+            fg_color=BOSCH_WHITE,
+            button_color=BOSCH_MID_GRAY,
+            button_hover_color="#B8B8B8",
+            command=lambda _v: self._mark_limits_dirty(),
+        )
         self._e_lo = ctk.CTkEntry(right_card, placeholder_text="Lower limit", width=260, font=font_small())
         self._e_hi = ctk.CTkEntry(right_card, placeholder_text="Upper limit", width=260, font=font_small())
         self._e_unit = ctk.CTkEntry(right_card, placeholder_text="Unit", width=260, font=font_small())
         self._e_rc = ctk.CTkEntry(right_card, placeholder_text="Root cause if out of range", width=260, font=font_small())
-        self._en_var = ctk.BooleanVar(value=True)
-        self._en_cb = ctk.CTkCheckBox(right_card, text="Enabled (include in check)", variable=self._en_var, font=font_small())
 
         for lb, w in (
             ("Label", self._e_label),
             ("Type", self._e_type),
             ("Description", self._e_desc),
-            ("Category", self._e_cat),
+            ("Category", self._e_cat_combo),
             ("Lower limit", self._e_lo),
             ("Upper limit", self._e_hi),
             ("Unit", self._e_unit),
@@ -260,7 +272,20 @@ class ProfileEditorPage(BasePage):
         ):
             ctk.CTkLabel(right_card, text=lb, font=font_small(), text_color=BOSCH_DARK_GRAY).pack(anchor="w", padx=GRID)
             w.pack(anchor="w", padx=GRID, pady=(0, 6))
-        self._en_cb.pack(anchor="w", padx=GRID, pady=6)
+
+        ctk.CTkLabel(right_card, text="Include in check (ON)", font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w", padx=GRID
+        )
+        self._seg_on = ctk.CTkSegmentedButton(
+            right_card,
+            values=["Yes", "No"],
+            variable=self._en_on_var,
+            width=200,
+            height=32,
+            font=font_small(),
+            command=lambda _v: self._mark_limits_dirty(),
+        )
+        self._seg_on.pack(anchor="w", padx=GRID, pady=(0, 10))
 
         def _dirty_hook(_e: object = None) -> None:
             self._mark_limits_dirty()
@@ -268,7 +293,6 @@ class ProfileEditorPage(BasePage):
         for w in (
             self._e_label,
             self._e_desc,
-            self._e_cat,
             self._e_lo,
             self._e_hi,
             self._e_unit,
@@ -276,21 +300,35 @@ class ProfileEditorPage(BasePage):
         ):
             w.bind("<KeyRelease>", _dirty_hook)
         self._e_type.configure(command=lambda _v: self._mark_limits_dirty())
-        self._en_cb.configure(command=self._mark_limits_dirty)
 
+        btn_row = ctk.CTkFrame(right_card, fg_color="transparent")
+        btn_row.pack(fill="x", padx=GRID, pady=(GRID, 6))
         ctk.CTkButton(
-            right_card,
-            text="Apply to row",
-            width=200,
-            height=32,
+            btn_row,
+            text="OK",
+            width=100,
+            height=36,
             corner_radius=4,
             fg_color=BOSCH_RED,
             font=font_body(),
+            command=self._ok_apply_detail,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row,
+            text="Apply",
+            width=100,
+            height=36,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            font=font_small(),
             command=self._apply_detail_to_def,
-        ).pack(anchor="w", padx=GRID, pady=GRID)
+        ).pack(side="left")
         ctk.CTkLabel(
             right_card,
-            text="Tip: double-click the ON column to toggle enabled.",
+            text="OK: apply row and save all limits to database. Apply: update row only (still use Save all limits).",
             font=font_small(),
             text_color=BOSCH_MID_GRAY,
             wraplength=280,
@@ -309,6 +347,20 @@ class ProfileEditorPage(BasePage):
     def _category_menu_values(self) -> List[str]:
         return ["All"] + merged_filter_values()
 
+    def _edit_category_values(self) -> List[str]:
+        """Categories for the row editor combobox; leading '' = blank category."""
+        vals = list(merged_filter_values())
+        return [""] + vals if vals else [""]
+
+    def _refresh_edit_category_combo(self) -> None:
+        if not self._e_cat_combo:
+            return
+        vals = list(merged_filter_values())
+        cur = (self._e_cat_combo.get() or "").strip()
+        if cur and cur not in vals:
+            vals = [cur] + vals
+        self._e_cat_combo.configure(values=[""] + vals if vals else [""])
+
     def _refresh_category_menu(self) -> None:
         if not self._cat_menu:
             return
@@ -319,6 +371,7 @@ class ProfileEditorPage(BasePage):
             self.cat_filter.set(cur)
         else:
             self.cat_filter.set("All")
+        self._refresh_edit_category_combo()
 
     def _add_category_dialog(self) -> None:
         dlg = ctk.CTkInputDialog(text="New category name (for filter & limits):", title="Bosch Plausibility Check")
@@ -328,6 +381,9 @@ class ProfileEditorPage(BasePage):
         add_category(name)
         self._refresh_category_menu()
         self.cat_filter.set(name)
+        self._refresh_edit_category_combo()
+        if self._e_cat_combo:
+            self._e_cat_combo.set(name)
         self._rebuild_tree_only()
 
     def _remove_current_category_preset(self) -> None:
@@ -345,6 +401,7 @@ class ProfileEditorPage(BasePage):
         remove_category(sel)
         self._refresh_category_menu()
         self.cat_filter.set("All")
+        self._refresh_edit_category_combo()
         self._rebuild_tree_only()
 
     def _passes_filter(self, d: LimitDefinition) -> bool:
@@ -422,6 +479,7 @@ class ProfileEditorPage(BasePage):
             self._mark_limits_dirty()
             self._rebuild_tree_only()
             self._tree.selection_set(str(idx))
+            self._selected_index = idx
             self._load_detail(self._all_defs[idx])
 
     def _load_detail(self, d: LimitDefinition) -> None:
@@ -430,8 +488,17 @@ class ProfileEditorPage(BasePage):
         self._e_type.set(_TYPE_SHORT.get(d.parameter_type, "Other"))
         self._e_desc.delete(0, "end")
         self._e_desc.insert(0, d.description or "")
-        self._e_cat.delete(0, "end")
-        self._e_cat.insert(0, d.category or "")
+        self._refresh_edit_category_combo()
+        cat = d.category or ""
+        if self._e_cat_combo:
+            vals = list(self._e_cat_combo.cget("values"))
+            if cat and cat not in vals:
+                vals = [cat] + vals
+                self._e_cat_combo.configure(values=vals)
+            self._e_cat_combo.set(cat)
+        self._en_on_var.set("Yes" if d.is_enabled else "No")
+        if self._seg_on:
+            self._seg_on.set(self._en_on_var.get())
         self._e_lo.delete(0, "end")
         if d.lower_limit is not None:
             self._e_lo.insert(0, str(d.lower_limit))
@@ -442,7 +509,6 @@ class ProfileEditorPage(BasePage):
         self._e_unit.insert(0, d.unit or "")
         self._e_rc.delete(0, "end")
         self._e_rc.insert(0, d.root_cause or "")
-        self._en_var.set(d.is_enabled)
 
     def _flush_detail_to_selection(self) -> None:
         if self._selected_index is None:
@@ -459,12 +525,34 @@ class ProfileEditorPage(BasePage):
         d.parameter_name = label
         d.parameter_type = _type_from_short(self._e_type.get())
         d.description = self._e_desc.get().strip()
-        d.category = self._e_cat.get().strip()
+        d.category = (self._e_cat_combo.get() if self._e_cat_combo else "").strip()
         d.unit = self._e_unit.get().strip()
         d.root_cause = self._e_rc.get().strip()
         d.lower_limit = self._parse_float(self._e_lo.get())
         d.upper_limit = self._parse_float(self._e_hi.get())
-        d.is_enabled = self._en_var.get()
+        d.is_enabled = self._en_on_var.get() == "Yes"
+
+    def _ok_apply_detail(self) -> None:
+        """Apply panel to row and persist full profile (one step)."""
+        if self._selected_index is None:
+            messagebox.showinfo("Bosch Plausibility Check", "Select a row in the table first.")
+            return
+        keep_idx = self._selected_index
+        self._flush_detail_to_selection()
+        self._mark_limits_dirty()
+        if self._persist_limits_to_db(show_message=False):
+            if self._tree and keep_idx is not None and self._tree.exists(str(keep_idx)):
+                self._selected_index = keep_idx
+                self._tree.selection_set(str(keep_idx))
+                self._tree.see(str(keep_idx))
+                if 0 <= keep_idx < len(self._all_defs):
+                    self._load_detail(self._all_defs[keep_idx])
+            messagebox.showinfo("Bosch Plausibility Check", "Row applied and all limits saved.")
+        else:
+            self._rebuild_tree_only()
+            if self._tree and keep_idx is not None and self._tree.exists(str(keep_idx)):
+                self._tree.selection_set(str(keep_idx))
+                self._selected_index = keep_idx
 
     def _apply_detail_to_def(self) -> None:
         if self._selected_index is None:
@@ -512,6 +600,7 @@ class ProfileEditorPage(BasePage):
 
     def on_show(self) -> None:
         self._refresh_category_menu()
+        self._refresh_edit_category_combo()
         self._sync_engine_menu_from_project()
         self._load_engine_profile()
 
@@ -550,16 +639,21 @@ class ProfileEditorPage(BasePage):
                 return []
         return list(self._all_defs)
 
-    def _save(self) -> None:
+    def _persist_limits_to_db(self, show_message: bool = True) -> bool:
         defs = self._collect_definitions()
         if not defs:
-            return
+            return False
         self.controller.db.replace_limit_profile(self._engine_type_value(), defs)
         self._all_defs = defs
         self._mark_limits_clean()
-        messagebox.showinfo("Bosch Plausibility Check", "All limits saved.")
+        if show_message:
+            messagebox.showinfo("Bosch Plausibility Check", "All limits saved.")
         self._rebuild_tree_only()
         logger.info("Saved profile %s (%s rows)", self._engine_type_value(), len(defs))
+        return True
+
+    def _save(self) -> None:
+        self._persist_limits_to_db(show_message=True)
 
     def _export_json(self) -> None:
         defs = self._collect_definitions()

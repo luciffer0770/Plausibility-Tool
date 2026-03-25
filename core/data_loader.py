@@ -140,8 +140,13 @@ def load_puma_file(file_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
             df = df.iloc[1:].reset_index(drop=True)
             logger.debug("Dropped units row (row 1)")
 
+    # Keep time / text meta columns as strings (ZEIT must stay readable for violation timestamps)
+    _no_numeric = frozenset(
+        {"PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME"}
+    )
     for c in df.columns:
-        if c in ("PRNAME", "DATUM", "ZEIT", "VERSIONT"):
+        cu = str(c).strip().upper()
+        if cu in _no_numeric or "ZEIT" in cu:
             continue
         try:
             df[c] = pd.to_numeric(df[c], errors="coerce")
@@ -179,6 +184,20 @@ def load_puma_file(file_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
         except Exception:
             pass
     return df, meta
+
+
+def row_time_labels_for_dataframe(df: pd.DataFrame) -> Optional[pd.Series]:
+    """
+    Return the first column that looks like PUMA ZEIT (time per measurement row).
+
+    Column name matching is case-insensitive; keeps values as strings/times for display.
+    """
+    if df.empty:
+        return None
+    for c in df.columns:
+        if "ZEIT" in str(c).upper():
+            return df[c]
+    return None
 
 
 def preview_parameters_by_zeit(

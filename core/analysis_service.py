@@ -9,7 +9,7 @@ from typing import Any, List, Optional
 
 import pandas as pd
 
-from core.data_loader import build_canonical_numeric_df, load_puma_file
+from core.data_loader import build_canonical_numeric_df, load_puma_file, row_time_labels_for_dataframe
 from core.models import LimitDefinition, ParameterType
 from core.plausibility_engine import (
     check_parameter,
@@ -66,7 +66,7 @@ def run_plausibility_for_file(
     df_raw, meta = load_puma_file(path)
     canon_df, _ = build_canonical_numeric_df(df_raw)
 
-    zeit_series = df_raw["ZEIT"] if "ZEIT" in df_raw.columns else None
+    zeit_series = row_time_labels_for_dataframe(df_raw)
 
     defs = db.get_limit_profile(engine_type_value)
     defs_by_name = {d.parameter_name: d for d in defs}

@@ -10,6 +10,7 @@ from core.data_loader import (
     detect_column_mapping,
     preview_parameters_by_zeit,
     preview_parameters_detailed_table,
+    row_time_labels_for_dataframe,
 )
 
 
@@ -42,6 +43,13 @@ class TestDataLoader(unittest.TestCase):
         self.assertIn("12:18:21", prev.columns)
         self.assertIn("T0", prev.index)
         self.assertIn("N", prev.index)
+
+    def test_row_time_labels_finds_zeit(self) -> None:
+        df = pd.DataFrame({"zeit": ["09:00", "09:01"], "N": [1.0, 2.0]})
+        s = row_time_labels_for_dataframe(df)
+        self.assertIsNotNone(s)
+        assert s is not None
+        self.assertEqual(str(s.iloc[0]), "09:00")
 
     def test_preview_detailed_zeit_columns(self) -> None:
         df = pd.DataFrame(
