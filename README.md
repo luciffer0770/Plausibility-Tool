@@ -16,29 +16,38 @@ python3 main.py
 
 Use **Python 3.10+** (on Windows, `py -3 main.py` if `python` is still 2.x).
 
-## Run in GitHub Codespaces
+## Run in GitHub Codespaces (see the GUI)
 
-PRÜF is a **desktop (Tk) app**. The dev container runs **Xvfb + Fluxbox + x11vnc + websockify** and serves **noVNC** on port **6080** (replaces the older `desktop-lite` setup, which often failed to connect).
+Tk apps have no window in the browser by themselves. You must open **noVNC** (virtual desktop) on port **6080**, then start the app **inside that desktop** (or use the VS Code terminal with `DISPLAY=:99` — same screen).
 
-### One-time after pulling these changes
+### A — First time on this branch
 
-1. **Rebuild the container** so the new Dockerfile runs: Command Palette (`Ctrl+Shift+P`) → **Dev Containers: Rebuild Container** (or recreate the Codespace).
+1. Push/pull branch **`cursor/plausibility-check-tool-e9d7`** (or merge to `main`) so `.devcontainer/` is on GitHub.
+2. **Code → Codespaces → Create codespace** on that branch.
+3. Wait for build to finish (`postCreateCommand` installs Python deps; `postStartCommand` starts the desktop).
+4. **Rebuild if the container was created before** `.devcontainer/Dockerfile` existed: `Ctrl+Shift+P` → **Dev Containers: Rebuild Container**.
 
-### Every session
+### B — Every time you want the GUI
 
-1. Create or open a Codespace on a branch that includes `.devcontainer/`.
-2. Wait until the environment is ready ( **`pip install -r requirements.txt`** runs on create).
-3. Open the **Ports** tab → find **6080** → set visibility to **Public** (needed for the browser tab to load reliably).
-4. Click the **globe / Open in browser** link for port **6080**.
-5. You should see the **noVNC** page. Click **Connect** (this setup uses **no VNC password** — dev-only).
-6. **Right‑click the desktop → Terminal** (or open a terminal in Fluxbox) and run:
+1. In Codespace, open the **Ports** tab (bottom panel).
+2. Find port **6080** → set **Visibility** to **Public** → click the **globe** “open in browser”.
+3. In the noVNC tab: click **Connect** (no password in this dev setup).
+4. **Inside the grey desktop**, right‑click → **Terminal** (Fluxbox menu), **or** use the VS Code terminal and run:
 
    ```bash
-   cd /workspaces/Plausibility-Tool
+   ./scripts/codespace_run_gui.sh
+   ```
+
+   If the path differs, use:
+
+   ```bash
+   cd /workspaces/<YOUR-REPO-NAME>
    python3 main.py
    ```
 
-   The integrated VS Code terminal also has `DISPLAY=:99`, so **`python3 main.py` in VS Code** can show the window **if** Xvfb is running (same display as noVNC).
+5. The PRÜF window should appear on the **virtual desktop** (the noVNC tab). If you only look at VS Code with no noVNC open, you will not see it.
+
+**Tip:** Keep the **6080** browser tab visible; drag the app window if it opens off-screen.
 
 **If the UI looks “cut off” or has odd scrollbars**
 
