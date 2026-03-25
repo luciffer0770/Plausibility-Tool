@@ -44,8 +44,6 @@ def _bundle_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-_ROOT = _bundle_root()
-
 _TAB_MAP = {
     "projects": "projects_tab",
     "limits": "profiles",
