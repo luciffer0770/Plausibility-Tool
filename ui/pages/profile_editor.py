@@ -10,6 +10,7 @@ from typing import Any, List, Optional
 
 import customtkinter as ctk
 
+from core.engine_type_labels import list_engine_type_labels
 from core.models import EngineType, LimitDefinition, ParameterType
 from core.limit_categories_store import (
     add_category,
@@ -67,6 +68,7 @@ class ProfileEditorPage(BasePage):
         self._tk_wrap: Optional[tk.Frame] = None
         self._limits_dirty: bool = False
         self._save_status: Optional[ctk.CTkLabel] = None
+        self._engine_menu: Optional[ctk.CTkOptionMenu] = None
         self.setup_ui()
 
     def setup_ui(self) -> None:
@@ -77,14 +79,21 @@ class ProfileEditorPage(BasePage):
 
         ctk.CTkLabel(bar, text="Engine profile:", font=font_body()).pack(side="left", padx=4)
         self.engine_override.set(EngineType.TURBO_4CYL.value)
-        ctk.CTkOptionMenu(
+        self._engine_menu = ctk.CTkOptionMenu(
             bar,
-            values=[e.value for e in EngineType],
+            values=self._engine_profile_values(),
             variable=self.engine_override,
-            command=lambda _v: self._load_engine_profile(),
-            width=200,
+            command=lambda _v: self._on_engine_profile_changed(),
+            width=240,
             font=font_body(),
-        ).pack(side="left", padx=4)
+        )
+        self._engine_menu.pack(side="left", padx=4)
+        ctk.CTkLabel(
+            bar,
+            text="(matches active project’s engine type)",
+            font=font_small(),
+            text_color=BOSCH_DARK_GRAY,
+        ).pack(side="left", padx=(4, 0))
 
         ctk.CTkLabel(bar, text="CATEGORY:", font=font_body()).pack(side="left", padx=(GRID, 4))
         self._cat_menu = ctk.CTkOptionMenu(
@@ -480,11 +489,30 @@ class ProfileEditorPage(BasePage):
         except ValueError:
             return None
 
+    def _engine_profile_values(self) -> List[str]:
+        return list_engine_type_labels(self.controller.db)
+
+    def _sync_engine_menu_from_project(self) -> None:
+        """Keep dropdown options in sync with Projects tab; default to active project’s engine type."""
+        vals = list(self._engine_profile_values())
+        proj = self.controller.current_project
+        key = proj.engine_type_key() if proj else None
+        if key and key not in vals:
+            vals = [key] + vals
+        if self._engine_menu:
+            self._engine_menu.configure(values=vals)
+        cur = (self.engine_override.get() or "").strip()
+        if proj and key:
+            self.engine_override.set(key)
+        elif cur not in vals and vals:
+            self.engine_override.set(vals[0])
+
+    def _on_engine_profile_changed(self) -> None:
+        self._load_engine_profile()
+
     def on_show(self) -> None:
         self._refresh_category_menu()
-        proj = self.controller.current_project
-        if proj:
-            self.engine_override.set(proj.engine_type_key())
+        self._sync_engine_menu_from_project()
         self._load_engine_profile()
 
     def _engine_type_value(self) -> str:

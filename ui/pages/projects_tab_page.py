@@ -8,9 +8,9 @@ from typing import Any, List, Optional
 
 import customtkinter as ctk
 
+from core.engine_type_labels import list_engine_type_labels
 from core.engine_types_store import (
     add_extra_engine_type,
-    load_extra_engine_types,
     remove_extra_engine_type,
 )
 from core.models import EngineType, Project
@@ -49,21 +49,7 @@ class ProjectsTabPage(BasePage):
         self.setup_ui()
 
     def _all_engine_type_labels(self) -> List[str]:
-        preset = [e.value for e in EngineType]
-        seen = set(preset)
-        out = list(preset)
-        for n in load_extra_engine_types():
-            if n not in seen:
-                seen.add(n)
-                out.append(n)
-        try:
-            for n in self.controller.db.list_engine_type_names():
-                if n not in seen:
-                    seen.add(n)
-                    out.append(n)
-        except Exception:
-            pass
-        return out
+        return list_engine_type_labels(self.controller.db)
 
     def _refresh_engine_combo(self, keep_selection: bool = True) -> None:
         cur = (self.engine_combo.get() or "").strip() if self.engine_combo else ""

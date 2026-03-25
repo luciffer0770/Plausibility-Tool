@@ -31,6 +31,7 @@ from ui.theme import (
     font_small,
 )
 from ui.ttk_style import apply_global_ttk_style
+from ui.window_icon import apply_window_icon
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ class PlausibilityApp(ctk.CTk):
         super().__init__()
         ensure_theme_ready()
         apply_global_ttk_style(self)
+        apply_window_icon(self)
         self.title("Bosch Plausibility Check Tool")
         geo = os.environ.get("BOSCH_PLAUS_GEOMETRY", "1400x850")
         minsz = os.environ.get("BOSCH_PLAUS_MINSIZE", "1024x600")
