@@ -263,7 +263,8 @@ class ProjectsTabPage(BasePage):
             width=140,
             height=32,
             corner_radius=4,
-            fg_color="#003d7a",
+            fg_color=BOSCH_RED,
+            hover_color="#C40007",
             font=font_body(),
             command=self._toolbar_select,
         ).pack(side="right", padx=6, pady=8)
@@ -287,7 +288,7 @@ class ProjectsTabPage(BasePage):
     def _add_engine_type(self) -> None:
         name = (self.engine_combo.get() or "").strip()
         if not name:
-            messagebox.showwarning("PRÜF", "Type a new engine type name in the field, then click +.")
+            messagebox.showwarning("Bosch Plausibility Check", "Type a new engine type name in the field, then click +.")
             return
         add_extra_engine_type(name)
         self.controller.db.insert_engine_type_if_missing(name)
@@ -298,7 +299,7 @@ class ProjectsTabPage(BasePage):
         if not name:
             return
         if not messagebox.askyesno(
-            "PRÜF",
+            "Bosch Plausibility Check",
             f'Remove engine type "{name}" from your saved list?\n\n'
             "Limit profiles in the database for this name are not deleted.",
         ):
@@ -356,24 +357,24 @@ class ProjectsTabPage(BasePage):
         self._selected_project_id = project_id
         for pid, fr in self._project_rows.items():
             if pid == project_id:
-                fr.configure(border_width=2, border_color="#003d7a")
+                fr.configure(border_width=2, border_color=BOSCH_RED)
             else:
                 fr.configure(border_width=1, border_color=BOSCH_MID_GRAY)
 
     def _toolbar_select(self) -> None:
         if self._selected_project_id is None:
-            messagebox.showinfo("PRÜF", "Click a project in the list first.")
+            messagebox.showinfo("Bosch Plausibility Check", "Click a project in the list first.")
             return
         self.controller.enter_project(self._selected_project_id)
 
     def _toolbar_delete(self) -> None:
         if self._selected_project_id is None:
-            messagebox.showinfo("PRÜF", "Click a project in the list first.")
+            messagebox.showinfo("Bosch Plausibility Check", "Click a project in the list first.")
             return
         pid = self._selected_project_id
         p = self.controller.db.get_project(pid)
         name = p.name if p else str(pid)
-        if not messagebox.askyesno("PRÜF", f'Delete project "{name}" and all its upload sessions?'):
+        if not messagebox.askyesno("Bosch Plausibility Check", f'Delete project "{name}" and all its upload sessions?'):
             return
         self.controller.db.delete_project(pid)
         if self.controller.current_project and self.controller.current_project.id == pid:

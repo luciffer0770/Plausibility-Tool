@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""PRUF - Plausibility Check Tool entry point."""
+"""Bosch Plausibility Check Tool — entry point."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ _ROOT = Path(__file__).resolve().parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from ui.app import PrufApp
+from ui.app import PlausibilityApp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,7 +23,7 @@ logging.basicConfig(
 
 def main() -> None:
     """Start the application."""
-    app = PrufApp()
+    app = PlausibilityApp()
     try:
         app.mainloop()
     finally:

@@ -1,4 +1,4 @@
-"""Base page for PRÜF."""
+"""Base page for Bosch Plausibility Check Tool."""
 
 from __future__ import annotations
 

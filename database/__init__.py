@@ -1,1 +1,1 @@
-"""Database package for PRÜF."""
+"""Database package for Bosch Plausibility Check Tool."""

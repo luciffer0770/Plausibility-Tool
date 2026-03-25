@@ -1,6 +1,7 @@
 __pycache__/
 *.py[cod]
 *.db
+bosch_plausibility_data.db
 .pytest_cache/
 .venv/
 venv/

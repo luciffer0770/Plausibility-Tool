@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Run PRÜF plausibility without the Tk GUI (Codespaces / CI / SSH).
+Run Bosch Plausibility Check without the Tk GUI (Codespaces / CI / SSH).
 
 Examples:
   python3 scripts/cli_plausibility.py list-projects
@@ -97,7 +97,7 @@ def cmd_run(db: DatabaseManager, project_id: int, file_path: Path) -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="PRÜF CLI (no GUI)")
+    p = argparse.ArgumentParser(description="Bosch Plausibility Check CLI (no GUI)")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("list-projects", help="List projects in the database")

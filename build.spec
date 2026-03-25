@@ -1,4 +1,4 @@
-# PyInstaller spec for PRÜF (run: pyinstaller build.spec)
+# PyInstaller spec for Bosch Plausibility Check Tool (run: pyinstaller build.spec)
 # -*- mode: python ; coding: utf-8 -*-
 
 block_cipher = None
@@ -32,7 +32,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='PRUF',
+    name='BoschPlausibilityCheck',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

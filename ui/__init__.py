@@ -1,1 +1,1 @@
-"""CustomTkinter UI for PRÜF."""
+"""CustomTkinter UI for Bosch Plausibility Check Tool."""

@@ -142,7 +142,7 @@ class UploadPage(BasePage):
                 nlim = sum(1 for c in canon.columns if c in enabled)
         except Exception as e:
             logger.exception("Load failed")
-            messagebox.showerror("PRÜF", f"Could not load file:\n{e}")
+            messagebox.showerror("Bosch Plausibility Check", f"Could not load file:\n{e}")
             self._df_raw = None
             self.run_btn.configure(state="disabled")
             return
@@ -186,14 +186,14 @@ class UploadPage(BasePage):
 
     def _run_analysis(self) -> None:
         if not self._path:
-            messagebox.showwarning("PRÜF", "Select a file first.")
+            messagebox.showwarning("Bosch Plausibility Check", "Select a file first.")
             return
         if self._df_raw is None or self._df_raw.empty:
-            messagebox.showwarning("PRÜF", "No data loaded.")
+            messagebox.showwarning("Bosch Plausibility Check", "No data loaded.")
             return
         proj = self.controller.current_project
         if not proj or proj.id is None:
-            messagebox.showwarning("PRÜF", "Select or create a project on the PROJECTS tab first.")
+            messagebox.showwarning("Bosch Plausibility Check", "Select or create a project on the PROJECTS tab first.")
             return
         try:
             from core.analysis_service import run_plausibility_for_file
@@ -208,8 +208,8 @@ class UploadPage(BasePage):
                 file_name=self._path.name,
             )
             self.controller.set_current_session(sid)
-            messagebox.showinfo("PRÜF", f"Analysis complete. Session id {sid}.")
+            messagebox.showinfo("Bosch Plausibility Check", f"Analysis complete. Session id {sid}.")
             self.controller.show_page("analysis")
         except Exception as e:
             logger.exception("Analysis failed")
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))

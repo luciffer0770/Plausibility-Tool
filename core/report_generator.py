@@ -39,7 +39,7 @@ def write_annotated_excel(
     db: DatabaseManager,
 ) -> Path:
     """
-    Write original data (sheet Data) plus PRÜF_Analysis sheet with results.
+    Write original data (sheet Original) plus Plausibility_Analysis sheet with results.
 
     Analysis sheet includes Status, Deviation %, Root cause with row fills.
     Original sheet is not modified.
@@ -84,8 +84,8 @@ def write_annotated_excel(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         df_orig.to_excel(writer, index=False, sheet_name="Original")
-        df_res.to_excel(writer, index=False, sheet_name="PRÜF_Analysis")
-        ws = writer.sheets["PRÜF_Analysis"]
+        df_res.to_excel(writer, index=False, sheet_name="Plausibility_Analysis")
+        ws = writer.sheets["Plausibility_Analysis"]
         status_col = list(df_res.columns).index("Status") + 1
         fills = {k: _fill(v) for k, v in _STATUS_FILL.items()}
         for ri in range(2, len(df_res) + 2):
@@ -261,7 +261,7 @@ def write_pdf_summary(
 
     pdf.set_y(36)
     pdf.set_font("Helvetica", "B", 16)
-    pdf.cell(0, 10, "PRUF - Plausibility Check Report", ln=1)
+    pdf.cell(0, 10, "Bosch Plausibility Check Report", ln=1)
 
     pdf.set_font("Helvetica", size=11)
     pdf.cell(0, 6, f"Project: {project.name}", ln=1)

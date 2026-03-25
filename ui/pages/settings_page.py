@@ -76,7 +76,7 @@ class SettingsPage(BasePage):
         data["default_export_dir"] = self.export_dir.get().strip()
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        messagebox.showinfo("PRÜF", "Settings saved.")
+        messagebox.showinfo("Bosch Plausibility Check", "Settings saved.")
 
     def _switch_project(self) -> None:
         if hasattr(self.controller, "back_to_login"):

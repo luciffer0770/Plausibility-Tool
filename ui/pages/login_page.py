@@ -50,7 +50,7 @@ class LoginPage(BasePage):
         hdr.pack(fill="x", padx=GRID * 2, pady=GRID * 2)
         ctk.CTkLabel(
             hdr,
-            text="PRÜF — Plausibility Check Tool",
+            text="Bosch Plausibility Check Tool",
             font=font_h2(),
             text_color=BOSCH_DARK_GRAY,
         ).pack(side="left")

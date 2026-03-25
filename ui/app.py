@@ -33,7 +33,6 @@ from ui.theme import (
 logger = logging.getLogger(__name__)
 
 _ROOT = Path(__file__).resolve().parent.parent
-_LOGO = _ROOT / "assets" / "bosch_logo.png"
 
 _TAB_MAP = {
     "projects": "projects_tab",
@@ -43,17 +42,18 @@ _TAB_MAP = {
 }
 
 
-class PrufApp(ctk.CTk):
-    """PRÜF desktop application."""
+class PlausibilityApp(ctk.CTk):
+    """Bosch Plausibility Check Tool — desktop shell."""
 
     def __init__(self) -> None:
         ctk.set_appearance_mode("light")
-        ctk.set_default_color_theme("blue")
+        # "green" theme avoids blue accent squares on many CTk widgets (vs default "blue").
+        ctk.set_default_color_theme("green")
         super().__init__()
         ensure_theme_ready()
-        self.title("PRÜF — Plausibility Check Tool")
-        geo = os.environ.get("PRUF_GEOMETRY", "1400x850")
-        minsz = os.environ.get("PRUF_MINSIZE", "1024x600")
+        self.title("Bosch Plausibility Check Tool")
+        geo = os.environ.get("BOSCH_PLAUS_GEOMETRY") or os.environ.get("PRUF_GEOMETRY", "1400x850")
+        minsz = os.environ.get("BOSCH_PLAUS_MINSIZE") or os.environ.get("PRUF_MINSIZE", "1024x600")
         try:
             w, h = minsz.lower().replace(" ", "").split("x", 1)
             self.minsize(int(w), int(h))
@@ -84,7 +84,7 @@ class PrufApp(ctk.CTk):
             self.main_shell,
             on_export=lambda: self.show_page("reports"),
             on_settings=lambda: self.show_page("settings"),
-            logo_path=_LOGO if _LOGO.is_file() else None,
+            logo_path=None,
         )
         self._header.pack(fill="x")
         self._header.set_title("PLAUSIBILITY CHECKER — ENGINE TEST BENCH")
@@ -121,7 +121,7 @@ class PrufApp(ctk.CTk):
         sep.pack(fill="x", side="top")
         ctk.CTkLabel(
             foot,
-            text="PRÜF v1.0  |  Bosch Engineering  |  Documentation  ·  Support",
+            text="Bosch Plausibility Check Tool v1.0  |  Bosch Engineering  |  Documentation  ·  Support",
             font=font_small(),
             text_color=BOSCH_STEEL,
         ).pack(side="left", padx=GRID * 2, pady=4)

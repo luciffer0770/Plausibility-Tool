@@ -1,1 +1,1 @@
-"""Core business logic for PRÜF."""
+"""Core business logic for Bosch Plausibility Check Tool."""

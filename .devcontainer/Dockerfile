@@ -1,4 +1,4 @@
-# PRÜF Codespaces: Python + Tk + noVNC stack (no desktop-lite feature)
+# Bosch Plausibility Check — Codespaces: Python + Tk + noVNC stack
 FROM mcr.microsoft.com/devcontainers/python:3.11-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
@@ -21,11 +22,25 @@ def _project_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _default_db_path() -> Path:
+    root = _project_root()
+    new_path = root / "bosch_plausibility_data.db"
+    legacy = root / "pruf_data.db"
+    if not new_path.exists() and legacy.exists():
+        try:
+            shutil.copy2(legacy, new_path)
+            logger.info("Copied legacy database to %s", new_path.name)
+        except OSError as e:
+            logger.warning("Could not copy legacy DB, using %s: %s", legacy.name, e)
+            return legacy
+    return new_path
+
+
 class DatabaseManager:
     """Application database."""
 
     def __init__(self, db_path: Optional[Path] = None) -> None:
-        self.db_path = db_path or (_project_root() / "pruf_data.db")
+        self.db_path = db_path or _default_db_path()
         self._conn: Optional[sqlite3.Connection] = None
 
     def connect(self) -> sqlite3.Connection:

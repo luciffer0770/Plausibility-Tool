@@ -68,19 +68,19 @@ class ReportPage(BasePage):
         sid = self.controller.current_session_id
         proj = self.controller.current_project
         if sid is None or proj is None:
-            messagebox.showwarning("PRÜF", "No session or project.")
+            messagebox.showwarning("Bosch Plausibility Check", "No session or project.")
             return None
         db: DatabaseManager = self.controller.db
         sess = db.get_upload_session(sid)
         if not sess or not sess.get("file_path"):
-            messagebox.showwarning("PRÜF", "Original file path not stored for this session.")
+            messagebox.showwarning("Bosch Plausibility Check", "Original file path not stored for this session.")
             return None
         return sid, Path(sess["file_path"])
 
     def _export_report_xlsx(self) -> None:
         sid = self.controller.current_session_id
         if sid is None:
-            messagebox.showwarning("PRÜF", "No session.")
+            messagebox.showwarning("Bosch Plausibility Check", "No session.")
             return
         out = filedialog.asksaveasfilename(
             defaultextension=".xlsx",
@@ -90,9 +90,9 @@ class ReportPage(BasePage):
             return
         try:
             write_plausibility_report_excel(Path(out), sid, self.controller.db)
-            messagebox.showinfo("PRÜF", f"Saved:\n{out}")
+            messagebox.showinfo("Bosch Plausibility Check", f"Saved:\n{out}")
         except Exception as e:
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))
 
     def _export_xlsx(self) -> None:
         ctx = self._session_context()
@@ -107,15 +107,15 @@ class ReportPage(BasePage):
             return
         try:
             write_annotated_excel(src, Path(out), sid, self.controller.db)
-            messagebox.showinfo("PRÜF", f"Saved:\n{out}")
+            messagebox.showinfo("Bosch Plausibility Check", f"Saved:\n{out}")
         except Exception as e:
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))
 
     def _export_pdf(self) -> None:
         sid = self.controller.current_session_id
         proj = self.controller.current_project
         if sid is None or proj is None:
-            messagebox.showwarning("PRÜF", "No session or project.")
+            messagebox.showwarning("Bosch Plausibility Check", "No session or project.")
             return
         db = self.controller.db
         rows = db.get_measurements_for_session(sid)
@@ -145,6 +145,6 @@ class ReportPage(BasePage):
         logo = Path(__file__).resolve().parent.parent.parent / "assets" / "bosch_logo.png"
         try:
             write_pdf_summary(Path(out), proj, summary, rows, logo if logo.is_file() else None)
-            messagebox.showinfo("PRÜF", f"Saved:\n{out}")
+            messagebox.showinfo("Bosch Plausibility Check", f"Saved:\n{out}")
         except Exception as e:
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))

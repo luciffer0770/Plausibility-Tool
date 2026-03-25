@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Virtual desktop for PRÜF in headless environments (GitHub Codespaces).
+# Virtual desktop for Bosch Plausibility Check in headless environments (GitHub Codespaces).
 # Serves noVNC on 0.0.0.0:6080 → VNC on 127.0.0.1:5900 → Xvfb :99
 
 set -euo pipefail
@@ -29,7 +29,7 @@ sleep 1
   export DISPLAY=:99
   cat >/tmp/pruf-xterm.sh <<'EOS'
 #!/bin/bash
-echo "======== PRÜF desktop terminal ========"
+echo "======== Bosch Plausibility Check — desktop terminal ========"
 echo "GUI:  cd to your repo, then:  python3 main.py"
 echo "CLI:  python3 scripts/cli_plausibility.py list-projects"
 echo "      python3 scripts/cli_plausibility.py run --project-id ID --file file.xlsx"
@@ -41,7 +41,7 @@ pwd
 exec bash -l
 EOS
   chmod +x /tmp/pruf-xterm.sh
-  xterm -geometry 110x26+40+80 -bg '#FFFFFF' -fg '#333333' -title 'PRÜF — run python3 main.py here' -e /tmp/pruf-xterm.sh &
+  xterm -geometry 110x26+40+80 -bg '#FFFFFF' -fg '#333333' -title 'Bosch Plausibility — python3 main.py' -e /tmp/pruf-xterm.sh &
 ) &
 
 # VNC without password — dev container only; do not expose publicly outside Codespaces
@@ -72,7 +72,7 @@ cat > "${WEBDIR}/index.html" <<'HTMLEOF'
 <head>
   <meta charset="utf-8" />
   <meta http-equiv="refresh" content="0;url=vnc.html" />
-  <title>PRÜF — noVNC</title>
+  <title>Bosch Plausibility Check — noVNC</title>
 </head>
 <body>
   <p>Opening noVNC… <a href="vnc.html">Open vnc.html</a> if this page does not redirect.</p>

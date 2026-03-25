@@ -1,4 +1,4 @@
--- PRÜF SQLite schema (v3)
+-- Bosch Plausibility Check Tool — SQLite schema (v3)
 
 CREATE TABLE IF NOT EXISTS engine_types (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,

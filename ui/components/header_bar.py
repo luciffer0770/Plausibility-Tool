@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import customtkinter as ctk
-from PIL import Image
 
 from ui.theme import (
     BOSCH_RED,
@@ -41,15 +40,8 @@ class HeaderBar(ctk.CTkFrame):
         row = ctk.CTkFrame(self, fg_color=BOSCH_RED)
         row.pack(fill="both", expand=True, padx=GRID * 2, pady=GRID)
 
-        if logo_path and Path(logo_path).is_file():
-            try:
-                img = Image.open(logo_path)
-                img_ctk = ctk.CTkImage(light_image=img, dark_image=img, size=(80, 22))
-                ctk.CTkLabel(row, image=img_ctk, text="").pack(side="left", padx=(0, GRID))
-            except OSError:
-                ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_WHITE).pack(side="left")
-        else:
-            ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_WHITE).pack(side="left")
+        # Text-only branding (no image widget — avoids empty/square placeholder on some systems)
+        ctk.CTkLabel(row, text="BOSCH", font=font_h3(), text_color=BOSCH_WHITE).pack(side="left", padx=(0, GRID))
 
         self._title_label = ctk.CTkLabel(
             row,
@@ -57,7 +49,7 @@ class HeaderBar(ctk.CTkFrame):
             font=font_h3(),
             text_color=BOSCH_WHITE,
         )
-        self._title_label.pack(side="left", padx=GRID * 2)
+        self._title_label.pack(side="left", padx=(GRID, 0))
 
         self._project_label = ctk.CTkLabel(
             row,

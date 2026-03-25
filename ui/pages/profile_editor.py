@@ -351,7 +351,7 @@ class ProfileEditorPage(BasePage):
 
     def _apply_detail_to_def(self) -> None:
         if self._selected_index is None:
-            messagebox.showinfo("PRÜF", "Select a row in the table first.")
+            messagebox.showinfo("Bosch Plausibility Check", "Select a row in the table first.")
             return
         self._flush_detail_to_selection()
         self._rebuild_tree_only()
@@ -390,11 +390,11 @@ class ProfileEditorPage(BasePage):
         self._flush_detail_to_selection()
         names = [x.parameter_name for x in self._all_defs]
         if len(names) != len(set(names)):
-            messagebox.showwarning("PRÜF", "Duplicate parameter labels.")
+            messagebox.showwarning("Bosch Plausibility Check", "Duplicate parameter labels.")
             return []
         for d in self._all_defs:
             if not d.parameter_name or d.parameter_name.startswith("__new__"):
-                messagebox.showwarning("PRÜF", "Every row needs a parameter label (use Edit panel).")
+                messagebox.showwarning("Bosch Plausibility Check", "Every row needs a parameter label (use Edit panel).")
                 return []
         return list(self._all_defs)
 
@@ -404,7 +404,7 @@ class ProfileEditorPage(BasePage):
             return
         self.controller.db.replace_limit_profile(self._engine_type_value(), defs)
         self._all_defs = defs
-        messagebox.showinfo("PRÜF", "All limits saved.")
+        messagebox.showinfo("Bosch Plausibility Check", "All limits saved.")
         self._rebuild_tree_only()
         logger.info("Saved profile %s (%s rows)", self._engine_type_value(), len(defs))
 
@@ -423,7 +423,7 @@ class ProfileEditorPage(BasePage):
         try:
             defs = import_profile_json(Path(path).read_text(encoding="utf-8"))
         except Exception as e:
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))
             return
         self.controller.db.replace_limit_profile(self._engine_type_value(), defs)
         self._load_engine_profile()
@@ -435,7 +435,7 @@ class ProfileEditorPage(BasePage):
         try:
             new_rows = import_parameters_from_excel(Path(path))
         except Exception as e:
-            messagebox.showerror("PRÜF", str(e))
+            messagebox.showerror("Bosch Plausibility Check", str(e))
             return
         existing = {d.parameter_name: d for d in self.controller.db.get_limit_profile(self._engine_type_value())}
         for d in new_rows:
@@ -443,7 +443,7 @@ class ProfileEditorPage(BasePage):
         merged = list(existing.values())
         self.controller.db.replace_limit_profile(self._engine_type_value(), merged)
         self._load_engine_profile()
-        messagebox.showinfo("PRÜF", f"Imported {len(new_rows)} row(s).")
+        messagebox.showinfo("Bosch Plausibility Check", f"Imported {len(new_rows)} row(s).")
 
     def _clone_dialog(self) -> None:
         dlg = ctk.CTkToplevel(self)

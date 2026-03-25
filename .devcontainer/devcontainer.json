@@ -1,11 +1,13 @@
 {
-  "name": "PRÜF (Python + noVNC)",
+  "name": "Bosch Plausibility Check (Python + noVNC)",
   "build": {
     "dockerfile": "Dockerfile",
     "context": ".."
   },
   "remoteEnv": {
     "DISPLAY": ":99",
+    "BOSCH_PLAUS_GEOMETRY": "1280x720",
+    "BOSCH_PLAUS_MINSIZE": "1024x600",
     "PRUF_GEOMETRY": "1280x720",
     "PRUF_MINSIZE": "1024x600"
   },
@@ -22,7 +24,7 @@
   "forwardPorts": [6080],
   "portsAttributes": {
     "6080": {
-      "label": "noVNC — open this in browser for PRÜF",
+      "label": "noVNC — open in browser for GUI",
       "visibility": "public",
       "onAutoForward": "notify"
     }

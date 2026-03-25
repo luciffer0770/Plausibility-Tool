@@ -1,4 +1,4 @@
-"""Domain models for PRÜF."""
+"""Domain models for Bosch Plausibility Check Tool."""
 
 from __future__ import annotations
 
