@@ -31,10 +31,12 @@ class ParameterDetailPanel(ctk.CTkFrame):
         """Display fields for one measurement."""
         name = m.get("parameter_name", "")
         self.title.configure(text=name)
+        vs = m.get("values_sample")
         lines = [
             f"Status: {m.get('status')}",
             f"Value: {m.get('measured_value')}",
             f"Min / Max / Avg: {m.get('value_min')} / {m.get('value_max')} / {m.get('value_avg')}",
+            f"Values (all runs): {vs or '—'}",
             f"Limits: {m.get('limit_lower')} – {m.get('limit_upper')}",
             f"Deviation %: {m.get('deviation')}",
             "",

@@ -14,7 +14,7 @@ from core.models import EngineType, LimitDefinition, ParameterType, Project
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 
 def _project_root() -> Path:
@@ -104,6 +104,13 @@ class DatabaseManager:
                         self._conn.execute(stmt)
                     except sqlite3.OperationalError:
                         pass
+            if ver < 4:
+                try:
+                    self._conn.execute(
+                        "ALTER TABLE measurements ADD COLUMN values_sample TEXT"
+                    )
+                except sqlite3.OperationalError:
+                    pass
             self._conn.execute(
                 "INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)",
                 ("schema_version", str(_SCHEMA_VERSION)),
@@ -452,8 +459,8 @@ class DatabaseManager:
                     num_runs, measured_value,
                     value_min, value_max, value_avg, value_type,
                     timestamp, status, deviation, limit_lower, limit_upper,
-                    root_cause, corrective_action
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    root_cause, corrective_action, values_sample
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 rows,
             )
@@ -508,6 +515,27 @@ class DatabaseManager:
                 (project_id,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def delete_project(self, project_id: int) -> None:
+        """Remove project and dependent upload sessions / measurements."""
+        with self.cursor() as c:
+            sess_ids = [
+                r["id"]
+                for r in c.execute(
+                    "SELECT id FROM upload_sessions WHERE project_id=?", (project_id,)
+                ).fetchall()
+            ]
+            for sid in sess_ids:
+                c.execute("DELETE FROM measurements WHERE session_id=?", (sid,))
+            c.execute("DELETE FROM upload_sessions WHERE project_id=?", (project_id,))
+            c.execute("DELETE FROM projects WHERE id=?", (project_id,))
+
+    def delete_engine_type_row(self, name: str) -> None:
+        """Remove from engine_types table (SQLite); does not delete limit_profiles."""
+        if not name.strip():
+            return
+        with self.cursor() as c:
+            c.execute("DELETE FROM engine_types WHERE name=?", (name.strip(),))
 
     def top_failing_parameters(self, project_id: int, limit: int = 5) -> list[dict[str, Any]]:
         with self.cursor() as c:

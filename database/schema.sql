@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS measurements (
     limit_upper     REAL,
     root_cause      TEXT,
     corrective_action TEXT,
+    values_sample TEXT,
     FOREIGN KEY (session_id) REFERENCES upload_sessions(id)
 );
 

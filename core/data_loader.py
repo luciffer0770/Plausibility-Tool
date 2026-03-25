@@ -163,7 +163,76 @@ def load_puma_file(file_path: Path) -> Tuple[pd.DataFrame, Dict[str, Any]]:
 
     meta["num_rows"] = len(df)
     meta["num_cols"] = len(df.columns)
+    meta["parameter_column_count"] = len(
+        [
+            c
+            for c in df.columns
+            if str(c).strip().upper()
+            not in ("PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME")
+        ]
+    )
+    if len(df) > 0 and "N" in df.columns:
+        try:
+            n0 = df["N"].iloc[0]
+            if pd.notna(n0):
+                meta["rpm_sample"] = str(n0).strip()
+        except Exception:
+            pass
     return df, meta
+
+
+def preview_parameters_by_zeit(
+    df: pd.DataFrame,
+    max_runs: int = 20,
+    max_parameters: int = 80,
+) -> pd.DataFrame:
+    """
+    Rows = parameter columns, columns = ZEIT (or row index) for each run.
+
+    PUMA exports use ZEIT per row; use those as column headers instead of Run 1, Run 2.
+    """
+    if df.empty:
+        return pd.DataFrame()
+    n = min(max_runs, len(df))
+    sub = df.iloc[:n].copy()
+    skip = {"PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME"}
+    param_cols = [
+        c
+        for c in df.columns
+        if str(c).strip().upper() not in {s.upper() for s in skip}
+    ][:max_parameters]
+
+    col_labels: List[str] = []
+    seen: Dict[str, int] = {}
+    for i in range(n):
+        if "ZEIT" in sub.columns:
+            z = sub["ZEIT"].iloc[i]
+            lab = str(z).strip() if pd.notna(z) and str(z).strip() else f"Row {i + 1}"
+        else:
+            lab = f"Row {i + 1}"
+        if lab in seen:
+            seen[lab] += 1
+            lab = f"{lab} ({seen[lab]})"
+        else:
+            seen[lab] = 0
+        col_labels.append(lab)
+
+    data: Dict[str, List[Any]] = {lab: [] for lab in col_labels}
+
+    def _fmt_cell(v: Any) -> Any:
+        if isinstance(v, float) and pd.isna(v):
+            return "—"
+        if isinstance(v, float):
+            return round(v, 4) if abs(v) < 1e6 else f"{v:.4g}"
+        return str(v) if v is not None else "—"
+
+    for p in param_cols:
+        for i, lab in enumerate(col_labels):
+            data[lab].append(_fmt_cell(sub[p].iloc[i]))
+
+    out = pd.DataFrame(data, index=param_cols)
+    out.index.name = "Parameter"
+    return out
 
 
 def build_canonical_numeric_df(df: pd.DataFrame) -> Tuple[pd.DataFrame, Dict[str, str]]:

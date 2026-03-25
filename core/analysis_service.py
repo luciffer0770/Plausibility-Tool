@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -20,6 +21,25 @@ from core.puma_constants import parameter_defaults
 from database.db_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
+
+_MAX_VALUES_SAMPLE = 40
+
+
+def _format_values_sample(vals: List[float]) -> str:
+    if not vals:
+        return ""
+    show = vals[:_MAX_VALUES_SAMPLE]
+    parts: List[str] = []
+    for v in show:
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            parts.append("—")
+        elif isinstance(v, float) and v == int(v):
+            parts.append(str(int(v)))
+        else:
+            parts.append(f"{v:.4g}")
+    if len(vals) > _MAX_VALUES_SAMPLE:
+        parts.append("…")
+    return ", ".join(parts)
 
 
 def run_plausibility_for_file(
@@ -92,6 +112,7 @@ def run_plausibility_for_file(
         vmax = chk.get("max")
         vavg = chk.get("avg")
         nruns = chk.get("num_runs") or 0
+        vsample = _format_values_sample(vals)
 
         results.append(
             (
@@ -114,6 +135,7 @@ def run_plausibility_for_file(
                 d.upper_limit,
                 d.root_cause or "",
                 d.corrective_action or "",
+                vsample,
             )
         )
 

@@ -1,4 +1,4 @@
-"""Scrollable results table (v3 columns)."""
+"""Scrollable results table (v3 columns + values sample)."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from ui.theme import (
     font_small,
 )
 
-COL_WIDTHS = (72, 140, 88, 64, 40, 56, 56, 56, 100, 56, 140)
+COL_WIDTHS = (68, 100, 72, 52, 36, 48, 48, 48, 200, 80, 44, 120)
 
 
 def _status_fg(st: str) -> str:
@@ -54,6 +54,7 @@ class DataTable(ctk.CTkFrame):
             "Min",
             "Max",
             "Avg",
+            "Values (runs)",
             "Limits",
             "Status",
             "Root cause",
@@ -109,25 +110,32 @@ class DataTable(ctk.CTkFrame):
                 unit,
             )
 
+            vs = str(m.get("values_sample") or "")
+            if not vs:
+                vs = "—"
+            elif len(vs) > 90:
+                vs = vs[:87] + "…"
+
             vals: list[Any] = [
                 str(m.get("parameter_name", "")),
-                str(m.get("description", ""))[:36],
-                str(m.get("category", ""))[:22],
-                str(m.get("param_type", m.get("parameter_type", "")))[:12],
+                str(m.get("description", ""))[:28],
+                str(m.get("category", ""))[:18],
+                str(m.get("param_type", m.get("parameter_type", "")))[:10],
                 str(m.get("num_runs", "")),
                 _fmt(m.get("value_min")),
                 _fmt(m.get("value_max")),
                 _fmt(m.get("value_avg")),
-                lims[:28],
+                vs,
+                lims[:24],
                 st,
-                str(m.get("root_cause", ""))[:48],
+                str(m.get("root_cause", ""))[:40],
             ]
             fam, sz = font_small()
             for col, (txt, w) in enumerate(zip(vals, COL_WIDTHS)):
-                fg = _status_fg(st) if col == 9 else BOSCH_DARK_GRAY
-                if col in (5, 6, 7, 8):
+                fg = _status_fg(st) if col == 10 else BOSCH_DARK_GRAY
+                if col in (5, 6, 7):
                     fnt = font_mono()
-                elif col == 9 and st not in ("OK", "NO_DATA", "N/A", ""):
+                elif col == 10 and st not in ("OK", "NO_DATA", "N/A", ""):
                     fnt = (fam, sz, "bold")
                 else:
                     fnt = font_small()

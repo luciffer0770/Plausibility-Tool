@@ -1,12 +1,18 @@
-"""PROJECTS tab: create project + list / select (v3)."""
+"""PROJECTS tab: create project + list / select / delete (v3)."""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+from tkinter import messagebox
+from typing import Any, List, Optional
 
 import customtkinter as ctk
 
+from core.engine_types_store import (
+    add_extra_engine_type,
+    load_extra_engine_types,
+    remove_extra_engine_type,
+)
 from core.models import EngineType, Project
 from core.profile_manager import ensure_default_profile
 from ui.pages.base_page import BasePage
@@ -15,6 +21,7 @@ from ui.theme import (
     BOSCH_LIGHT_GRAY,
     BOSCH_MID_GRAY,
     BOSCH_RED,
+    BOSCH_STEEL,
     BOSCH_WHITE,
     GRID,
     font_body,
@@ -37,7 +44,36 @@ class ProjectsTabPage(BasePage):
         self.oem_v = ctk.StringVar()
         self.emission_v = ctk.StringVar()
         self.search_var = ctk.StringVar()
+        self._selected_project_id: Optional[int] = None
+        self._project_rows: dict[int, ctk.CTkFrame] = {}
         self.setup_ui()
+
+    def _all_engine_type_labels(self) -> List[str]:
+        preset = [e.value for e in EngineType]
+        seen = set(preset)
+        out = list(preset)
+        for n in load_extra_engine_types():
+            if n not in seen:
+                seen.add(n)
+                out.append(n)
+        try:
+            for n in self.controller.db.list_engine_type_names():
+                if n not in seen:
+                    seen.add(n)
+                    out.append(n)
+        except Exception:
+            pass
+        return out
+
+    def _refresh_engine_combo(self, keep_selection: bool = True) -> None:
+        cur = (self.engine_combo.get() or "").strip() if self.engine_combo else ""
+        vals = self._all_engine_type_labels()
+        if self.engine_combo:
+            self.engine_combo.configure(values=vals)
+            if keep_selection and cur in vals:
+                self.engine_combo.set(cur)
+            elif vals:
+                self.engine_combo.set(vals[0])
 
     def setup_ui(self) -> None:
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
@@ -59,89 +95,107 @@ class ProjectsTabPage(BasePage):
             text_color=BOSCH_DARK_GRAY,
         ).pack(anchor="w", padx=GRID * 2, pady=(GRID, 4))
 
-        grid = ctk.CTkFrame(form, fg_color="transparent")
-        grid.pack(fill="x", padx=GRID * 2, pady=GRID)
-        grid.grid_columnconfigure(1, weight=1)
-        grid.grid_columnconfigure(3, weight=1)
+        form_inner = ctk.CTkFrame(form, fg_color="transparent")
+        form_inner.pack(fill="x", padx=GRID * 2, pady=GRID)
+        form_inner.grid_columnconfigure(0, weight=0)
+        form_inner.grid_columnconfigure(1, weight=0)
+        max_w = 520
 
-        def cell(r: int, c: int, label: str, widget: object) -> None:
-            ctk.CTkLabel(grid, text=label, font=font_body(), anchor="w").grid(
-                row=r, column=c * 2, sticky="w", padx=(0, 8), pady=4
+        def add_row(r: int, label: str, widget: Any) -> None:
+            ctk.CTkLabel(form_inner, text=label, font=font_body(), anchor="w", width=140).grid(
+                row=r, column=0, sticky="nw", padx=(0, 12), pady=6
             )
-            widget.grid(row=r, column=c * 2 + 1, sticky="ew", pady=4)
+            widget.grid(row=r, column=1, sticky="w", pady=6)
 
-        preset = [e.value for e in EngineType]
-        try:
-            extra = self.controller.db.list_engine_type_names()
-            for n in extra:
-                if n not in preset:
-                    preset.append(n)
-        except Exception:
-            pass
-
-        self.engine_combo = ctk.CTkComboBox(
-            grid,
-            values=preset,
-            width=280,
-            font=font_body(),
-        )
-        self.engine_combo.set(EngineType.TURBO_4CYL.value)
-
-        cell(
-            0,
+        add_row(
             0,
             "Project name",
             ctk.CTkEntry(
-                grid,
+                form_inner,
                 textvariable=self.name_v,
                 placeholder_text="e.g. PROJECT_ALFA_2024",
                 font=font_body(),
+                width=max_w,
             ),
         )
-        cell(0, 1, "Engine type", self.engine_combo)
-        cell(
-            1,
-            0,
-            "Test bed ID",
-            ctk.CTkEntry(grid, textvariable=self.bed_v, placeholder_text="ST-092-B", font=font_body()),
+
+        eng_row = ctk.CTkFrame(form_inner, fg_color="transparent")
+        self.engine_combo = ctk.CTkComboBox(
+            eng_row,
+            values=self._all_engine_type_labels(),
+            width=max_w - 88,
+            font=font_body(),
         )
-        cell(
-            1,
-            1,
-            "Engine code",
-            ctk.CTkEntry(grid, textvariable=self.code_v, placeholder_text="EA888-G3", font=font_body()),
+        self.engine_combo.set(EngineType.TURBO_4CYL.value)
+        self.engine_combo.pack(side="left", padx=(0, 6))
+        ctk.CTkButton(
+            eng_row,
+            text="+",
+            width=36,
+            height=32,
+            font=font_h3(),
+            fg_color=BOSCH_RED,
+            hover_color="#C40007",
+            command=self._add_engine_type,
+        ).pack(side="left", padx=2)
+        ctk.CTkButton(
+            eng_row,
+            text="−",
+            width=36,
+            height=32,
+            font=font_h3(),
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            command=self._remove_engine_type,
+        ).pack(side="left", padx=2)
+        ctk.CTkLabel(form_inner, text="Engine type", font=font_body(), anchor="w", width=140).grid(
+            row=1, column=0, sticky="nw", padx=(0, 12), pady=6
         )
-        cell(
+        eng_row.grid(row=1, column=1, sticky="w", pady=6)
+
+        add_row(
             2,
-            0,
+            "Test bed ID",
+            ctk.CTkEntry(form_inner, textvariable=self.bed_v, placeholder_text="ST-092-B", font=font_body(), width=max_w),
+        )
+        add_row(
+            3,
+            "Engine code",
+            ctk.CTkEntry(form_inner, textvariable=self.code_v, placeholder_text="EA888-G3", font=font_body(), width=max_w),
+        )
+        add_row(
+            4,
             "Customer / OEM",
             ctk.CTkEntry(
-                grid,
+                form_inner,
                 textvariable=self.oem_v,
                 placeholder_text="Internal Development",
                 font=font_body(),
+                width=max_w,
             ),
         )
-        cell(
-            2,
-            1,
+        add_row(
+            5,
             "Emission norm",
             ctk.CTkEntry(
-                grid,
+                form_inner,
                 textvariable=self.emission_v,
                 placeholder_text="Euro 6d-TEMP (free text)",
                 font=font_body(),
+                width=max_w,
             ),
         )
-        cell(
-            3,
-            0,
+        add_row(
+            6,
             "Search list",
             ctk.CTkEntry(
-                grid,
+                form_inner,
                 textvariable=self.search_var,
                 placeholder_text="Filter projects…",
                 font=font_body(),
+                width=max_w,
             ),
         )
         self.search_var.trace_add("write", lambda *_: self._refresh_list())
@@ -173,8 +227,85 @@ class ProjectsTabPage(BasePage):
             command=self._clear_form,
         ).pack(side="left")
 
-        self.list_host = ctk.CTkFrame(outer, fg_color="transparent")
+        list_section = ctk.CTkFrame(outer, fg_color="transparent")
+        list_section.pack(fill="both", expand=True)
+
+        hdr = ctk.CTkFrame(list_section, fg_color="transparent")
+        hdr.pack(fill="x", pady=(0, GRID))
+        ctk.CTkLabel(hdr, text="EXISTING PROJECTS", font=font_h3(), text_color=BOSCH_DARK_GRAY).pack(side="left")
+
+        self._count_label = ctk.CTkLabel(
+            hdr,
+            text="COUNT: 0",
+            font=font_small(),
+            text_color=BOSCH_DARK_GRAY,
+        )
+        self._count_label.pack(side="right", padx=(GRID, 0))
+
+        toolbar = ctk.CTkFrame(
+            list_section,
+            fg_color=BOSCH_WHITE,
+            corner_radius=6,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+        )
+        toolbar.pack(fill="x", pady=(0, GRID))
+        ctk.CTkLabel(
+            toolbar,
+            text="Click a project below, then:",
+            font=font_small(),
+            text_color=BOSCH_STEEL,
+        ).pack(side="left", padx=GRID, pady=8)
+
+        ctk.CTkButton(
+            toolbar,
+            text="Select as active",
+            width=140,
+            height=32,
+            corner_radius=4,
+            fg_color="#003d7a",
+            font=font_body(),
+            command=self._toolbar_select,
+        ).pack(side="right", padx=6, pady=8)
+        ctk.CTkButton(
+            toolbar,
+            text="Delete project",
+            width=120,
+            height=32,
+            corner_radius=4,
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_RED,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            font=font_body(),
+            command=self._toolbar_delete,
+        ).pack(side="right", padx=6, pady=8)
+
+        self.list_host = ctk.CTkScrollableFrame(list_section, fg_color=BOSCH_LIGHT_GRAY)
         self.list_host.pack(fill="both", expand=True)
+
+    def _add_engine_type(self) -> None:
+        name = (self.engine_combo.get() or "").strip()
+        if not name:
+            messagebox.showwarning("PRÜF", "Type a new engine type name in the field, then click +.")
+            return
+        add_extra_engine_type(name)
+        self.controller.db.insert_engine_type_if_missing(name)
+        self._refresh_engine_combo(keep_selection=True)
+
+    def _remove_engine_type(self) -> None:
+        name = (self.engine_combo.get() or "").strip()
+        if not name:
+            return
+        if not messagebox.askyesno(
+            "PRÜF",
+            f'Remove engine type "{name}" from your saved list?\n\n'
+            "Limit profiles in the database for this name are not deleted.",
+        ):
+            return
+        remove_extra_engine_type(name)
+        self.controller.db.delete_engine_type_row(name)
+        self._refresh_engine_combo(keep_selection=False)
 
     def _clear_form(self) -> None:
         self.name_v.set("")
@@ -210,33 +341,60 @@ class ProjectsTabPage(BasePage):
             emission_norm=self.emission_v.get().strip(),
         )
         self.controller.db.insert_engine_type_if_missing(et_key)
+        add_extra_engine_type(et_key)
         pid = self.controller.db.insert_project(proj)
         ensure_default_profile(self.controller.db, proj.engine_type_key())
         self.controller.enter_project(pid)
         self._refresh_list()
+        self._refresh_engine_combo()
 
     def on_show(self) -> None:
+        self._refresh_engine_combo()
+        self._refresh_list()
+
+    def _set_selection(self, project_id: int) -> None:
+        self._selected_project_id = project_id
+        for pid, fr in self._project_rows.items():
+            if pid == project_id:
+                fr.configure(border_width=2, border_color="#003d7a")
+            else:
+                fr.configure(border_width=1, border_color=BOSCH_MID_GRAY)
+
+    def _toolbar_select(self) -> None:
+        if self._selected_project_id is None:
+            messagebox.showinfo("PRÜF", "Click a project in the list first.")
+            return
+        self.controller.enter_project(self._selected_project_id)
+
+    def _toolbar_delete(self) -> None:
+        if self._selected_project_id is None:
+            messagebox.showinfo("PRÜF", "Click a project in the list first.")
+            return
+        pid = self._selected_project_id
+        p = self.controller.db.get_project(pid)
+        name = p.name if p else str(pid)
+        if not messagebox.askyesno("PRÜF", f'Delete project "{name}" and all its upload sessions?'):
+            return
+        self.controller.db.delete_project(pid)
+        if self.controller.current_project and self.controller.current_project.id == pid:
+            self.controller.back_to_login()
+        self._selected_project_id = None
         self._refresh_list()
 
     def _refresh_list(self) -> None:
         for w in self.list_host.winfo_children():
             w.destroy()
+        self._project_rows.clear()
+
         q = self.search_var.get().strip().lower()
-        hdr = ctk.CTkFrame(self.list_host, fg_color="transparent")
-        hdr.pack(fill="x", pady=(0, GRID))
-        ctk.CTkLabel(hdr, text="EXISTING PROJECTS", font=font_h3(), text_color=BOSCH_DARK_GRAY).pack(side="left")
         items = self.controller.list_projects_with_stats()
-        ctk.CTkLabel(
-            hdr,
-            text=f"COUNT: {len(items)}",
-            font=font_small(),
-            text_color=BOSCH_DARK_GRAY,
-        ).pack(side="right")
+        self._count_label.configure(text=f"COUNT: {len(items)}")
 
         for item in items:
             p: Project = item["project"]
             if q and q not in p.name.lower():
                 continue
+            pid = p.id or 0
             card = ctk.CTkFrame(
                 self.list_host,
                 fg_color=BOSCH_WHITE,
@@ -245,38 +403,40 @@ class ProjectsTabPage(BasePage):
                 border_color=BOSCH_MID_GRAY,
             )
             card.pack(fill="x", pady=6)
+            self._project_rows[pid] = card
+
             inner = ctk.CTkFrame(card, fg_color="transparent")
             inner.pack(fill="x", padx=GRID * 2, pady=GRID)
-            pid = p.id or 0
+
             cur = self.controller.current_project
-            is_sel = cur and cur.id == p.id
+            is_active = cur and cur.id == p.id
             et_display = p.engine_type_key()
-
-            ctk.CTkLabel(inner, text=p.name, font=font_h3(), text_color=BOSCH_DARK_GRAY, anchor="w").pack(
-                side="left", fill="x", expand=True
-            )
             uploads = item.get("upload_count", 0)
-            sub = f"{et_display}  |  {p.test_bed_id or '—'}  |  {p.engine_code or '—'}  |  uploads: {uploads}"
-            ctk.CTkLabel(
+
+            title = ctk.CTkLabel(
                 inner,
-                text=sub,
-                font=font_small(),
+                text=p.name + ("  ● ACTIVE" if is_active else ""),
+                font=font_h3(),
                 text_color=BOSCH_DARK_GRAY,
-            ).pack(side="left", padx=GRID)
+                anchor="w",
+            )
+            title.pack(anchor="w")
+            sub = (
+                f"{et_display}  |  Bed: {p.test_bed_id or '—'}  |  Code: {p.engine_code or '—'}  "
+                f"|  OEM: {p.customer_oem or '—'}  |  Norm: {p.emission_norm or '—'}  |  Uploads: {uploads}"
+            )
+            ctk.CTkLabel(inner, text=sub, font=font_small(), text_color=BOSCH_DARK_GRAY, anchor="w").pack(
+                anchor="w"
+            )
 
-            def select_project(project_id: int = pid) -> None:
-                self.controller.enter_project(project_id)
+            def on_click(_e: object, project_id: int = pid) -> None:
+                self._set_selection(project_id)
 
-            ctk.CTkButton(
-                inner,
-                text="SELECTED" if is_sel else "Select",
-                width=100,
-                height=32,
-                corner_radius=4,
-                fg_color="#003d7a" if is_sel else BOSCH_WHITE,
-                text_color=BOSCH_WHITE if is_sel else BOSCH_DARK_GRAY,
-                border_width=0 if is_sel else 1,
-                border_color=BOSCH_MID_GRAY,
-                command=select_project,
-                font=font_small(),
-            ).pack(side="right", padx=4)
+            card.bind("<Button-1>", on_click)
+            inner.bind("<Button-1>", on_click)
+            title.bind("<Button-1>", on_click)
+            for ch in inner.winfo_children():
+                ch.bind("<Button-1>", on_click)
+
+            if is_active:
+                self._set_selection(pid)
