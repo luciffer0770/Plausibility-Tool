@@ -31,7 +31,8 @@ Tk apps have no window in the browser by themselves. You must open **noVNC** (vi
 
 1. In Codespace, open the **Ports** tab (bottom panel).
 2. Find port **6080** → set **Visibility** to **Public** → click the **globe** “open in browser”.
-3. In the noVNC tab: click **Connect** (no password in this dev setup).
+3. In the noVNC tab you should land on the viewer (or click **Connect** if prompted).  
+   **If you see “Directory listing for /”** instead, click **`vnc.html`** in the list — or **rebuild the container** so the updated startup script adds an automatic redirect.
 4. **Inside the grey desktop**, right‑click → **Terminal** (Fluxbox menu), **or** use the VS Code terminal and run:
 
    ```bash

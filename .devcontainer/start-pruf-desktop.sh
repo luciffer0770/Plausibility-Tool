@@ -40,5 +40,24 @@ if [[ -z "$NOVNC_WEB" ]]; then
 fi
 echo "Using noVNC web root: $NOVNC_WEB"
 
+# Copy tree + add index.html — otherwise websockify shows "Directory listing for /"
+WEBDIR=/tmp/pruf-novnc-web
+rm -rf "$WEBDIR"
+mkdir -p "$WEBDIR"
+cp -a "${NOVNC_WEB}/." "${WEBDIR}/"
+cat > "${WEBDIR}/index.html" <<'HTMLEOF'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="0;url=vnc.html" />
+  <title>PRÜF — noVNC</title>
+</head>
+<body>
+  <p>Opening noVNC… <a href="vnc.html">Open vnc.html</a> if this page does not redirect.</p>
+</body>
+</html>
+HTMLEOF
+
 # Bind all interfaces so GitHub port forwarding can reach the proxy
-exec python3 -m websockify --web="$NOVNC_WEB" 0.0.0.0:6080 127.0.0.1:5900
+exec python3 -m websockify --web="$WEBDIR" 0.0.0.0:6080 127.0.0.1:5900
