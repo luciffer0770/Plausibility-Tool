@@ -7,12 +7,10 @@
   "remoteEnv": {
     "DISPLAY": ":99",
     "BOSCH_PLAUS_GEOMETRY": "1280x720",
-    "BOSCH_PLAUS_MINSIZE": "1024x600",
-    "PRUF_GEOMETRY": "1280x720",
-    "PRUF_MINSIZE": "1024x600"
+    "BOSCH_PLAUS_MINSIZE": "1024x600"
   },
   "postCreateCommand": "pip install --no-cache-dir -r requirements.txt",
-  "postStartCommand": "nohup /usr/local/bin/start-pruf-desktop.sh </dev/null >>/tmp/pruf-desktop.log 2>&1 & sleep 3",
+  "postStartCommand": "nohup /usr/local/bin/start-bosch-plausibility-desktop.sh </dev/null >>/tmp/bosch-plausibility-desktop.log 2>&1 & sleep 3",
   "customizations": {
     "vscode": {
       "extensions": ["ms-python.python"],

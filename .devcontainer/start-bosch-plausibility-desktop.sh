@@ -4,9 +4,9 @@
 
 set -euo pipefail
 
-LOG=/tmp/pruf-desktop.log
+LOG=/tmp/bosch-plausibility-desktop.log
 exec >>"$LOG" 2>&1
-echo "=== start-pruf-desktop $(date) ==="
+echo "=== start-bosch-plausibility-desktop $(date) ==="
 
 export DISPLAY=:99
 
@@ -27,7 +27,7 @@ sleep 1
 (
   sleep 2
   export DISPLAY=:99
-  cat >/tmp/pruf-xterm.sh <<'EOS'
+  cat >/tmp/bosch-plaus-xterm.sh <<'EOS'
 #!/bin/bash
 echo "======== Bosch Plausibility Check — desktop terminal ========"
 echo "GUI:  cd to your repo, then:  python3 main.py"
@@ -40,8 +40,8 @@ done
 pwd
 exec bash -l
 EOS
-  chmod +x /tmp/pruf-xterm.sh
-  xterm -geometry 110x26+40+80 -bg '#FFFFFF' -fg '#333333' -title 'Bosch Plausibility — python3 main.py' -e /tmp/pruf-xterm.sh &
+  chmod +x /tmp/bosch-plaus-xterm.sh
+  xterm -geometry 110x26+40+80 -bg '#FFFFFF' -fg '#333333' -title 'Bosch Plausibility — python3 main.py' -e /tmp/bosch-plaus-xterm.sh &
 ) &
 
 # VNC without password — dev container only; do not expose publicly outside Codespaces
@@ -62,7 +62,7 @@ fi
 echo "Using noVNC web root: $NOVNC_WEB"
 
 # Copy tree + add index.html — otherwise websockify shows "Directory listing for /"
-WEBDIR=/tmp/pruf-novnc-web
+WEBDIR=/tmp/bosch-plausibility-novnc-web
 rm -rf "$WEBDIR"
 mkdir -p "$WEBDIR"
 cp -a "${NOVNC_WEB}/." "${WEBDIR}/"

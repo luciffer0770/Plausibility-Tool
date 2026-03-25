@@ -38,7 +38,7 @@ Tk apps have no window in the browser by themselves. Open **noVNC** on port **60
 
 ### A — First time on this branch
 
-1. Push/pull branch **`cursor/plausibility-check-tool-e9d7`** (or merge to `main`) so `.devcontainer/` is on GitHub.
+1. Push/pull your working branch (or merge to `main`) so `.devcontainer/` is on GitHub.
 2. **Code → Codespaces → Create codespace** on that branch.
 3. Wait for build to finish (`postCreateCommand` installs Python deps; `postStartCommand` starts the desktop).
 4. **Rebuild if the container was created before** `.devcontainer/Dockerfile` existed: `Ctrl+Shift+P` → **Dev Containers: Rebuild Container**.
@@ -68,7 +68,7 @@ Tk apps have no window in the browser by themselves. Open **noVNC** on port **60
 
 **If the UI looks “cut off” or has odd scrollbars**
 
-The remote desktop has a fixed pixel size. If it was smaller than the app window, the window was clipped. The dev container uses a **1920×1080** virtual screen and sets **`BOSCH_PLAUS_GEOMETRY=1280x720`** (or legacy `PRUF_GEOMETRY`) so the app fits better in the browser. After rebuild, you should see the full window.
+The remote desktop has a fixed pixel size. If it was smaller than the app window, the window was clipped. The dev container uses a **1920×1080** virtual screen and sets **`BOSCH_PLAUS_GEOMETRY=1280x720`** so the app fits better in the browser. After rebuild, you should see the full window.
 
 In noVNC, try **full screen** (toolbar) or open with scaling, e.g. append to the path:
 
@@ -80,10 +80,10 @@ In noVNC, try **full screen** (toolbar) or open with scaling, e.g. append to the
 
 ```bash
 ./scripts/check_novnc.sh
-tail -50 /tmp/pruf-desktop.log
+tail -50 /tmp/bosch-plausibility-desktop.log
 ```
 
-If port 6080 is closed, restart the stack: `nohup /usr/local/bin/start-pruf-desktop.sh &` (then wait a few seconds and refresh the browser).
+If port 6080 is closed, restart the stack: `nohup /usr/local/bin/start-bosch-plausibility-desktop.sh &` (then wait a few seconds and refresh the browser).
 
 **Headless smoke test** (no GUI):
 
@@ -108,7 +108,7 @@ Place `assets/bosch_logo.png` in the repository for the header and PDF (corporat
 - **Tabbed UI** (reference-style): **PROJECTS** | **LIMITS CONFIG** | **UPLOAD & EVALUATE** | **RESULTS** (+ Export/Settings in header)
 - Projects: create + list/select; header shows `ACTIVE: …`
 - **LIMITS CONFIG**: scrollable **table** (#, label, type, description, lower/upper, unit, root cause, **ON** checkbox). Category filter, **SAVE ALL LIMITS**, JSON/Excel import, clone. Disabled rows are skipped in plausibility checks.
-- SQLite (`bosch_plausibility_data.db`; legacy `pruf_data.db` is copied on first run); schema adds `is_enabled` on limit profiles (auto-migrated)
+- SQLite (`bosch_plausibility_data.db`; older single-file DB in the project folder is copied on first run if present); schema adds `is_enabled` on limit profiles (auto-migrated)
 - PUMA upload with mapping preview; analysis (first data row vs limits); results table + export
 
 ## Tests

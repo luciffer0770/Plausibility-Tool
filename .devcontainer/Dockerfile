@@ -15,5 +15,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir websockify
 
 # Context is workspace root (see devcontainer.json build.context)
-COPY .devcontainer/start-pruf-desktop.sh /usr/local/bin/start-pruf-desktop.sh
-RUN chmod +x /usr/local/bin/start-pruf-desktop.sh
+COPY .devcontainer/start-bosch-plausibility-desktop.sh /usr/local/bin/start-bosch-plausibility-desktop.sh
+RUN chmod +x /usr/local/bin/start-bosch-plausibility-desktop.sh

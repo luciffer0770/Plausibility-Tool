@@ -52,8 +52,8 @@ class PlausibilityApp(ctk.CTk):
         super().__init__()
         ensure_theme_ready()
         self.title("Bosch Plausibility Check Tool")
-        geo = os.environ.get("BOSCH_PLAUS_GEOMETRY") or os.environ.get("PRUF_GEOMETRY", "1400x850")
-        minsz = os.environ.get("BOSCH_PLAUS_MINSIZE") or os.environ.get("PRUF_MINSIZE", "1024x600")
+        geo = os.environ.get("BOSCH_PLAUS_GEOMETRY", "1400x850")
+        minsz = os.environ.get("BOSCH_PLAUS_MINSIZE", "1024x600")
         try:
             w, h = minsz.lower().replace(" ", "").split("x", 1)
             self.minsize(int(w), int(h))
