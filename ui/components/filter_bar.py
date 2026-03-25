@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict
 import customtkinter as ctk
 
 from ui.theme import BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, GRID, font_body
+from ui.ttk_style import neutral_ctk_entry_focus
 
 
 class FilterBar(ctk.CTkFrame):
@@ -66,6 +67,7 @@ class FilterBar(ctk.CTkFrame):
             border_color=BOSCH_MID_GRAY,
         )
         self.search.pack(side="left", padx=4)
+        self.after_idle(neutral_ctk_entry_focus, self.search)
         self.search.bind("<KeyRelease>", lambda e: self._emit())
 
     def _emit(self, *_args: object) -> None:

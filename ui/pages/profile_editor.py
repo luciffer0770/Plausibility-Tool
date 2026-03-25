@@ -11,6 +11,11 @@ from typing import Any, List, Optional
 import customtkinter as ctk
 
 from core.models import EngineType, LimitDefinition, ParameterType
+from core.limit_categories_store import (
+    add_category,
+    merged_filter_values,
+    remove_category,
+)
 from core.limits_template_export import write_limits_template_excel
 from core.profile_manager import (
     export_profile_json,
@@ -28,6 +33,7 @@ from ui.theme import (
     BOSCH_WHITE,
     GRID,
     font_body,
+    font_h3,
     font_small,
 )
 
@@ -81,14 +87,37 @@ class ProfileEditorPage(BasePage):
         ).pack(side="left", padx=4)
 
         ctk.CTkLabel(bar, text="CATEGORY:", font=font_body()).pack(side="left", padx=(GRID, 4))
-        ctk.CTkOptionMenu(
+        self._cat_menu = ctk.CTkOptionMenu(
             bar,
-            values=["All", "Temperature", "Pressure", "Emission", "Combustion", "Other", "Set"],
+            values=self._category_menu_values(),
             variable=self.cat_filter,
             command=lambda _v: self._rebuild_tree_only(),
-            width=140,
+            width=200,
             font=font_body(),
-        ).pack(side="left", padx=4)
+        )
+        self._cat_menu.pack(side="left", padx=2)
+        ctk.CTkButton(
+            bar,
+            text="+",
+            width=32,
+            height=32,
+            font=font_h3(),
+            fg_color=BOSCH_RED,
+            hover_color="#C40007",
+            command=self._add_category_dialog,
+        ).pack(side="left", padx=2)
+        ctk.CTkButton(
+            bar,
+            text="−",
+            width=32,
+            height=32,
+            font=font_h3(),
+            fg_color=BOSCH_WHITE,
+            text_color=BOSCH_DARK_GRAY,
+            border_width=1,
+            border_color=BOSCH_MID_GRAY,
+            command=self._remove_current_category_preset,
+        ).pack(side="left", padx=2)
 
         save_row = ctk.CTkFrame(bar, fg_color="transparent")
         save_row.pack(side="right", padx=8)
@@ -268,9 +297,53 @@ class ProfileEditorPage(BasePage):
         if self._save_status:
             self._save_status.configure(text="")
 
+    def _category_menu_values(self) -> List[str]:
+        return ["All"] + merged_filter_values()
+
+    def _refresh_category_menu(self) -> None:
+        if not self._cat_menu:
+            return
+        cur = self.cat_filter.get()
+        vals = self._category_menu_values()
+        self._cat_menu.configure(values=vals)
+        if cur in vals:
+            self.cat_filter.set(cur)
+        else:
+            self.cat_filter.set("All")
+
+    def _add_category_dialog(self) -> None:
+        dlg = ctk.CTkInputDialog(text="New category name (for filter & limits):", title="Bosch Plausibility Check")
+        name = (dlg.get_input() or "").strip()
+        if not name:
+            return
+        add_category(name)
+        self._refresh_category_menu()
+        self.cat_filter.set(name)
+        self._rebuild_tree_only()
+
+    def _remove_current_category_preset(self) -> None:
+        sel = (self.cat_filter.get() or "").strip()
+        if sel in ("", "All"):
+            messagebox.showinfo("Bosch Plausibility Check", "Select a category in the list first (not “All”).")
+            return
+        if not messagebox.askyesno(
+            "Bosch Plausibility Check",
+            f'Remove "{sel}" from your saved category presets?\n\n'
+            "Built-in types (Temperature, …) stay available. "
+            "Rows that use this category text are not changed.",
+        ):
+            return
+        remove_category(sel)
+        self._refresh_category_menu()
+        self.cat_filter.set("All")
+        self._rebuild_tree_only()
+
     def _passes_filter(self, d: LimitDefinition) -> bool:
         cat = self.cat_filter.get()
         if cat == "All":
+            return True
+        row_cat = (d.category or "").strip()
+        if row_cat and row_cat == cat:
             return True
         return d.parameter_type.value == cat
 
@@ -408,6 +481,7 @@ class ProfileEditorPage(BasePage):
             return None
 
     def on_show(self) -> None:
+        self._refresh_category_menu()
         proj = self.controller.current_project
         if proj:
             self.engine_override.set(proj.engine_type_key())

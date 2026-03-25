@@ -343,7 +343,11 @@ class ProjectsTabPage(BasePage):
         )
         self.controller.db.insert_engine_type_if_missing(et_key)
         add_extra_engine_type(et_key)
-        pid = self.controller.db.insert_project(proj)
+        try:
+            pid = self.controller.db.insert_project(proj)
+        except ValueError as e:
+            messagebox.showwarning("Bosch Plausibility Check", str(e))
+            return
         ensure_default_profile(self.controller.db, proj.engine_type_key())
         self.controller.enter_project(pid)
         self._refresh_list()

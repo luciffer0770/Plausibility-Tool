@@ -30,6 +30,7 @@ from ui.theme import (
     ensure_theme_ready,
     font_small,
 )
+from ui.ttk_style import apply_global_ttk_style
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class PlausibilityApp(ctk.CTk):
         ctk.set_default_color_theme("green")
         super().__init__()
         ensure_theme_ready()
+        apply_global_ttk_style(self)
         self.title("Bosch Plausibility Check Tool")
         geo = os.environ.get("BOSCH_PLAUS_GEOMETRY", "1400x850")
         minsz = os.environ.get("BOSCH_PLAUS_MINSIZE", "1024x600")

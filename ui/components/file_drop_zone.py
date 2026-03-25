@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional
 
 import customtkinter as ctk
 
-from ui.theme import BOSCH_MID_GRAY, BOSCH_STEEL, GRID, font_body, font_h3
+from ui.theme import BOSCH_MID_GRAY, BOSCH_STEEL, GRID, font_body, font_small
 
 logger = logging.getLogger(__name__)
 
@@ -21,42 +21,47 @@ class FileDropZone(ctk.CTkFrame):
         master: Any,
         on_path_chosen: Callable[[Path], None],
         extensions: tuple[str, ...] = (".xlsx", ".xls", ".csv"),
+        compact: bool = False,
     ) -> None:
         super().__init__(master, fg_color="transparent")
         self.on_path_chosen = on_path_chosen
         self.extensions = extensions
         self._path: Optional[Path] = None
+        self._compact = compact
 
         self.zone = ctk.CTkFrame(
             self,
             fg_color="#FAFAFA",
-            border_width=2,
+            border_width=1,
             border_color=BOSCH_MID_GRAY,
-            corner_radius=8,
+            corner_radius=6,
         )
-        self.zone.pack(fill="both", expand=True, padx=GRID, pady=GRID)
+        py = GRID if compact else GRID * 2
+        self.zone.pack(fill="x" if compact else "both", expand=not compact, padx=0, pady=py)
 
         inner = ctk.CTkFrame(self.zone, fg_color="transparent")
-        inner.pack(expand=True, fill="both", padx=GRID * 3, pady=GRID * 4)
+        ipx = GRID * 2 if compact else GRID * 3
+        ipy = GRID if compact else GRID * 4
+        inner.pack(expand=True, fill="both", padx=ipx, pady=ipy)
 
         self.label = ctk.CTkLabel(
             inner,
             text="PUMA export — browse for .xlsx / .xls / .csv",
-            font=font_h3(),
+            font=font_small() if compact else font_body(),
             text_color=BOSCH_STEEL,
-            justify="center",
+            justify="left" if compact else "center",
         )
-        self.label.pack(pady=GRID * 2)
+        self.label.pack(anchor="w" if compact else "center", pady=(0, GRID if compact else GRID * 2))
 
         ctk.CTkButton(
             inner,
             text="Browse file…",
-            width=160,
-            height=36,
+            width=130 if compact else 160,
+            height=30 if compact else 34,
             corner_radius=4,
             command=self._browse,
-            font=font_body(),
-        ).pack(pady=GRID)
+            font=font_small() if compact else font_body(),
+        ).pack(anchor="w" if compact else "center", pady=0)
 
     def _browse(self) -> None:
         from tkinter import filedialog

@@ -1,12 +1,12 @@
-"""PUMA file upload, ZEIT-based preview, run analysis."""
+"""PUMA file upload, ZEIT-based preview table, run analysis."""
 
 from __future__ import annotations
 
 import logging
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox
-from typing import Any, Optional
+from tkinter import messagebox, ttk
+from typing import Any, List, Optional, Tuple
 
 import customtkinter as ctk
 import pandas as pd
@@ -15,12 +15,22 @@ from core.data_loader import (
     build_canonical_numeric_df,
     detect_column_mapping,
     load_puma_file,
-    preview_parameters_by_zeit,
+    preview_parameters_detailed_table,
 )
 from core.user_settings import load_settings, save_settings
 from ui.components.file_drop_zone import FileDropZone
 from ui.pages.base_page import BasePage
-from ui.theme import BOSCH_DARK_GRAY, BOSCH_LIGHT_GRAY, BOSCH_MID_GRAY, BOSCH_RED, BOSCH_WHITE, GRID, font_body, font_small
+from ui.ttk_style import neutral_ctk_entry_focus
+from ui.theme import (
+    BOSCH_DARK_GRAY,
+    BOSCH_LIGHT_GRAY,
+    BOSCH_MID_GRAY,
+    BOSCH_RED,
+    BOSCH_WHITE,
+    GRID,
+    font_body,
+    font_small,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,52 +45,57 @@ class UploadPage(BasePage):
         self._mapping: dict[str, Any] = {}
         self._meta: dict[str, Any] = {}
         self._busy = False
+        self._preview_tree: Optional[ttk.Treeview] = None
+        self._preview_wrap: Optional[tk.Frame] = None
+        self._preview_cols: List[str] = []
         self.setup_ui()
 
     def setup_ui(self) -> None:
         self.configure(fg_color=BOSCH_LIGHT_GRAY)
 
         top = ctk.CTkFrame(self, fg_color="transparent")
-        top.pack(fill="x", padx=GRID, pady=GRID)
+        top.pack(fill="x", padx=GRID, pady=(GRID // 2, GRID))
 
-        left = ctk.CTkFrame(top, fg_color="transparent")
-        left.pack(side="left", fill="both", expand=True, padx=(0, GRID))
+        left_col = ctk.CTkFrame(top, fg_color="transparent", width=300)
+        left_col.pack(side="left", fill="y", padx=(0, GRID))
+        left_col.pack_propagate(False)
 
-        ctk.CTkLabel(left, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", pady=(0, 4)
+        ctk.CTkLabel(left_col, text="Upload PUMA export", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
+            anchor="w", pady=(0, 2)
         )
         ctk.CTkLabel(
-            left,
-            text="Supported: .xlsx, .xls (TSV), .csv  ·  Press Enter in the session note field to run check",
+            left_col,
+            text=".xlsx · .xls (TSV) · .csv",
             font=font_small(),
             text_color=BOSCH_DARK_GRAY,
-        ).pack(anchor="w", pady=(0, GRID))
+        ).pack(anchor="w", pady=(0, 4))
 
-        self.drop = FileDropZone(left, self._on_file)
-        self.drop.pack(fill="x", pady=(0, GRID))
+        self.drop = FileDropZone(left_col, self._on_file, compact=True)
+        self.drop.pack(fill="x", pady=(0, 6))
 
-        note_row = ctk.CTkFrame(left, fg_color="transparent")
-        note_row.pack(fill="x", pady=(0, GRID))
-        ctk.CTkLabel(note_row, text="Session note (optional):", font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
+        ctk.CTkLabel(left_col, text="Session note (optional)", font=font_small(), text_color=BOSCH_DARK_GRAY).pack(
             anchor="w"
         )
         self.note_var = ctk.StringVar()
         self.note_entry = ctk.CTkEntry(
-            note_row,
+            left_col,
             textvariable=self.note_var,
-            placeholder_text="e.g. Cold start, Map 2",
+            placeholder_text="e.g. Cold start",
             font=font_small(),
-            height=32,
+            height=28,
+            border_color=BOSCH_MID_GRAY,
+            fg_color=BOSCH_WHITE,
         )
-        self.note_entry.pack(fill="x", pady=(4, 0))
+        self.note_entry.pack(fill="x", pady=(2, 8))
+        self.after_idle(neutral_ctk_entry_focus, self.note_entry)
         self.note_entry.bind("<Return>", self._on_enter_run)
 
-        btn_row = ctk.CTkFrame(left, fg_color="transparent")
-        btn_row.pack(fill="x", pady=(0, GRID))
+        btn_row = ctk.CTkFrame(left_col, fg_color="transparent")
+        btn_row.pack(fill="x")
         self.run_btn = ctk.CTkButton(
             btn_row,
-            text="▶ RUN PLAUSIBILITY CHECK",
-            height=44,
+            text="▶ Run check",
+            height=34,
             corner_radius=4,
             fg_color=BOSCH_RED,
             hover_color="#C40007",
@@ -88,18 +103,18 @@ class UploadPage(BasePage):
             command=self._run_analysis,
             state="disabled",
         )
-        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.run_btn.pack(side="left", fill="x", expand=True, padx=(0, 6))
         self.rerun_btn = ctk.CTkButton(
             btn_row,
-            text="Re-run last file",
-            width=160,
-            height=44,
+            text="Re-run",
+            width=88,
+            height=34,
             corner_radius=4,
             fg_color=BOSCH_WHITE,
             text_color=BOSCH_DARK_GRAY,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
-            font=font_body(),
+            font=font_small(),
             command=self._rerun_last,
             state="disabled",
         )
@@ -111,21 +126,19 @@ class UploadPage(BasePage):
             corner_radius=6,
             border_width=1,
             border_color=BOSCH_MID_GRAY,
-            width=400,
         )
-        right.pack(side="right", fill="y")
-        right.pack_propagate(False)
+        right.pack(side="right", fill="both", expand=True)
 
         ctk.CTkLabel(right, text="File metadata", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", padx=GRID, pady=(GRID, 4)
+            anchor="w", padx=GRID, pady=(GRID, 2)
         )
-        self.meta_box = ctk.CTkTextbox(right, height=160, font=font_small(), border_color=BOSCH_MID_GRAY)
-        self.meta_box.pack(fill="x", padx=GRID, pady=4)
+        self.meta_box = ctk.CTkTextbox(right, height=100, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.meta_box.pack(fill="x", padx=GRID, pady=2)
 
         ctk.CTkLabel(right, text="Mapping summary", font=font_body(), text_color=BOSCH_DARK_GRAY).pack(
-            anchor="w", padx=GRID, pady=(GRID, 4)
+            anchor="w", padx=GRID, pady=(4, 2)
         )
-        self.summary = ctk.CTkTextbox(right, height=120, font=font_small(), border_color=BOSCH_MID_GRAY)
+        self.summary = ctk.CTkTextbox(right, height=72, font=font_small(), border_color=BOSCH_MID_GRAY)
         self.summary.pack(fill="x", padx=GRID, pady=(0, GRID))
 
         prev_wrap = ctk.CTkFrame(self, fg_color=BOSCH_WHITE, corner_radius=6, border_width=1, border_color=BOSCH_MID_GRAY)
@@ -133,34 +146,108 @@ class UploadPage(BasePage):
 
         ctk.CTkLabel(
             prev_wrap,
-            text="Data preview — rows = parameters, columns = ZEIT (time) per run",
-            font=font_body(),
+            text="Data preview — Parameter, Unit, Min / Max / Avg, then ZEIT (time) per measurement row",
+            font=font_small(),
             text_color=BOSCH_DARK_GRAY,
         ).pack(anchor="w", padx=GRID, pady=(GRID, 4))
 
-        self._preview_host = tk.Frame(prev_wrap, bg=BOSCH_WHITE, highlightthickness=0)
-        self._preview_host.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
-        self.preview = tk.Text(
-            self._preview_host,
-            height=16,
-            wrap="none",
-            font=("Consolas", 9),
+        self._preview_wrap = tk.Frame(prev_wrap, bg=BOSCH_WHITE, highlightthickness=0)
+        self._preview_wrap.pack(fill="both", expand=True, padx=GRID, pady=(0, GRID))
+        self._build_preview_tree_empty()
+
+    def _build_preview_tree_empty(self) -> None:
+        if self._preview_wrap is None:
+            return
+        for w in self._preview_wrap.winfo_children():
+            w.destroy()
+        self._preview_tree = None
+        self._preview_cols = []
+        lbl = tk.Label(
+            self._preview_wrap,
+            text="Browse a file to load preview.",
             bg=BOSCH_WHITE,
             fg=BOSCH_DARK_GRAY,
-            relief="flat",
-            borderwidth=1,
-            highlightthickness=1,
-            highlightbackground=BOSCH_MID_GRAY,
-            selectbackground="#CCE5FF",
+            font=("Segoe UI", 10),
         )
-        pv_sb_y = tk.Scrollbar(self._preview_host, orient="vertical", command=self.preview.yview)
-        pv_sb_x = tk.Scrollbar(self._preview_host, orient="horizontal", command=self.preview.xview)
-        self.preview.configure(yscrollcommand=pv_sb_y.set, xscrollcommand=pv_sb_x.set)
-        self.preview.grid(row=0, column=0, sticky="nsew")
-        pv_sb_y.grid(row=0, column=1, sticky="ns")
-        pv_sb_x.grid(row=1, column=0, sticky="ew")
-        self._preview_host.grid_rowconfigure(0, weight=1)
-        self._preview_host.grid_columnconfigure(0, weight=1)
+        lbl.pack(expand=True, pady=GRID * 4)
+
+    def _ensure_preview_tree(self, col_ids: List[str]) -> ttk.Treeview:
+        assert self._preview_wrap is not None
+        for w in self._preview_wrap.winfo_children():
+            w.destroy()
+
+        style = ttk.Style(self._preview_wrap)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(
+            "UploadPreview.Treeview",
+            rowheight=22,
+            fieldbackground=BOSCH_WHITE,
+            background=BOSCH_WHITE,
+            foreground=BOSCH_DARK_GRAY,
+        )
+        style.configure(
+            "UploadPreview.Treeview.Heading",
+            font=("Segoe UI", 9, "bold"),
+            background="#E8E8E8",
+            foreground=BOSCH_DARK_GRAY,
+        )
+        style.map(
+            "UploadPreview.Treeview",
+            background=[("selected", "#F5D5D5")],
+            foreground=[("selected", BOSCH_DARK_GRAY)],
+        )
+
+        tree = ttk.Treeview(
+            self._preview_wrap,
+            columns=col_ids,
+            show="headings",
+            style="UploadPreview.Treeview",
+            height=14,
+        )
+        wmap = {
+            "Parameter": 120,
+            "Unit": 48,
+            "Min": 56,
+            "Max": 56,
+            "Avg": 56,
+        }
+        for cid in col_ids:
+            if cid.startswith("ZEIT "):
+                h = cid[5:].strip() or cid
+            else:
+                h = cid
+            tree.heading(cid, text=h, anchor="w")
+            w = wmap.get(cid, 88)
+            stretch = cid not in ("Parameter", "Unit", "Min", "Max", "Avg")
+            tree.column(cid, width=w, minwidth=40, anchor="w", stretch=stretch)
+
+        vsb = ttk.Scrollbar(self._preview_wrap, orient="vertical", command=tree.yview)
+        hsb = ttk.Scrollbar(self._preview_wrap, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
+        tree.grid(row=0, column=0, sticky="nsew")
+        vsb.grid(row=0, column=1, sticky="ns")
+        hsb.grid(row=1, column=0, sticky="ew")
+        self._preview_wrap.grid_rowconfigure(0, weight=1)
+        self._preview_wrap.grid_columnconfigure(0, weight=1)
+
+        tree.tag_configure("odd", background=BOSCH_WHITE)
+        tree.tag_configure("even", background="#F5F5F5")
+
+        self._preview_tree = tree
+        self._preview_cols = col_ids
+        return tree
+
+    def _fill_preview(self, col_ids: List[str], rows: List[Tuple[str, str, str, str, str, List[str]]]) -> None:
+        tree = self._ensure_preview_tree(col_ids)
+        tree.delete(*tree.get_children())
+        for i, row in enumerate(rows):
+            param, unit, mn, mx, av, cells = row
+            vals = (param, unit, mn, mx, av) + tuple(cells)
+            tag = "even" if i % 2 else "odd"
+            tree.insert("", "end", values=vals, tags=(tag,))
 
     def _on_enter_run(self, _event: object) -> str:
         if not self._busy and str(self.run_btn.cget("state")) == "normal":
@@ -175,13 +262,12 @@ class UploadPage(BasePage):
 
     def _set_busy(self, busy: bool) -> None:
         self._busy = busy
-        st = "disabled" if busy else "normal"
         if self._path and self._df_raw is not None and not busy:
-            self.run_btn.configure(state="normal", text="▶ RUN PLAUSIBILITY CHECK")
+            self.run_btn.configure(state="normal", text="▶ Run check")
         elif busy:
             self.run_btn.configure(state="disabled", text="Working…")
         else:
-            self.run_btn.configure(state="disabled", text="▶ RUN PLAUSIBILITY CHECK")
+            self.run_btn.configure(state="disabled", text="▶ Run check")
         self.rerun_btn.configure(state="disabled" if busy else ("normal" if self._path else "disabled"))
 
     def _on_file(self, path: Path) -> None:
@@ -203,6 +289,7 @@ class UploadPage(BasePage):
             self._df_raw = None
             self.run_btn.configure(state="disabled")
             self.rerun_btn.configure(state="disabled")
+            self._build_preview_tree_empty()
             return
 
         save_settings({"last_puma_path": str(path.resolve())})
@@ -212,39 +299,31 @@ class UploadPage(BasePage):
         pcount = self._meta.get("parameter_column_count", len(df.columns))
         meta_lines = [
             f"File: {path.name}",
-            f"Date (DATUM): {self._meta.get('datum', '—')}",
-            f"Version (VERSIONT): {self._meta.get('versiont', '—')}",
-            f"Program (PRNAME): {self._meta.get('prname', '—')}",
-            f"Engine speed N (1st row): {rpm}",
-            f"Data rows (runs): {len(df)}",
-            f"Total columns: {len(df.columns)}",
-            f"Parameter columns (excl. meta): {pcount}",
-            f"File format: {self._meta.get('file_type', '')}",
+            f"DATUM: {self._meta.get('datum', '—')}  |  VERSIONT: {self._meta.get('versiont', '—')}",
+            f"PRNAME: {self._meta.get('prname', '—')}  |  N (1st): {rpm}",
+            f"Rows: {len(df)}  |  Cols: {len(df.columns)}  |  Params: {pcount}  |  {self._meta.get('file_type', '')}",
         ]
         self.meta_box.delete("1.0", "end")
         self.meta_box.insert("1.0", "\n".join(meta_lines))
 
         lines = [
-            f"Canonical numeric columns: {len(canon.columns)}",
-            f"Mapped to configured limits: {nlim}",
-            "",
-            "Sample column names (non-meta):",
+            f"Numeric columns: {len(canon.columns)}  |  Match enabled limits: {nlim}",
+            "Sample:",
         ]
         skip = {"PRNAME", "DATUM", "ZEIT", "VERSIONT", "AVL_INDEP_TIME"}
-        extra = [c for c in df.columns if str(c).strip().upper() not in {s.upper() for s in skip}][:20]
-        lines.extend(f"  • {c}" for c in extra)
+        extra = [c for c in df.columns if str(c).strip().upper() not in {s.upper() for s in skip}][:12]
+        lines.extend(f"  {c}" for c in extra)
         self.summary.delete("1.0", "end")
         self.summary.insert("1.0", "\n".join(lines))
 
-        prev_df = preview_parameters_by_zeit(df, max_runs=20, max_parameters=60)
-        self.preview.delete("1.0", "end")
-        if prev_df.empty:
-            self.preview.insert("1.0", "(No parameter columns to preview)")
+        col_ids, prow = preview_parameters_detailed_table(df, max_runs=12, max_parameters=60)
+        if not col_ids or not prow:
+            self._build_preview_tree_empty()
         else:
-            self.preview.insert("1.0", prev_df.to_string(max_cols=24))
+            self._fill_preview(col_ids, prow)
 
         if not self._busy:
-            self.run_btn.configure(state="normal", text="▶ RUN PLAUSIBILITY CHECK")
+            self.run_btn.configure(state="normal", text="▶ Run check")
 
     def _rerun_last(self) -> None:
         s = load_settings()
