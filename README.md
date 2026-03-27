@@ -54,8 +54,9 @@ Settings such as last project, last file path, and results filters are stored in
 ### Results
 
 - Summary tiles: **Total checked**, **Within limits**, **Above upper**, **Below lower**.
-- Session line includes file name, **upload timestamp**, optional note.
-- Table columns include **ZEIT (out of range)** when violations occur and the PUMA file has a **ZEIT** column (see *Data handling* below).
+- Session line includes file name, **upload timestamp**, optional note. If the file contains numeric columns **without** any enabled limit for the current engine profile, a **warning** line counts them and tells you to check **WARNING** rows at the bottom of the table.
+- **Configured parameters** appear first (HIGH/LOW/OK/NO_DATA). **PUMA-only columns** with no limit row are appended as **WARNING** (cream row): status **WARNING**, limits **—**, root cause explains adding limits in **LIMITS CONFIG**.
+- Table columns include **ZEIT (violations)** when limits are violated and the PUMA file has a **ZEIT** column (see *Data handling* below).
 - Copy row, export failed rows (Excel), link to full Excel/PDF reports.
 - Optional failure charts (checkbox).
 
@@ -80,6 +81,7 @@ pyinstaller build.spec
 - **Canonical dataframe** merges duplicate column names (e.g. `.1` suffix preference).
 - For each **enabled** limit with a matching column: all numeric **rows** are evaluated. **HIGH** if any value &gt; upper; **LOW** if any &lt; lower (HIGH wins if both); **OK** if in band; **NO_DATA** if no column or no valid numbers.
 - Violation **ZEIT** values are stored in `measurements.timestamp` (comma-separated, capped for display). **Re-run analysis** after updating the app if older sessions show **—** in the ZEIT column.
+- After **Run plausibility check**, if any unconfigured columns exist, an info dialog reminds you to review **WARNING** rows.
 
 ## Configuration files (runtime)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.models import Status
 from core.puma_constants import COLUMN_ALIAS_MAP
@@ -228,17 +228,31 @@ def resolve_data_column(param_name: str, canon_df_columns: Any) -> Optional[str]
 
 
 def status_sort_rank_v3(status: str) -> int:
-    """Fail first: HIGH, LOW, NO_DATA, OK."""
-    order = {"HIGH": 0, "LOW": 1, "NO_DATA": 2, "OK": 3}
-    # legacy
+    """Fail first: HIGH, LOW, NO_DATA, OK; WARNING (no limit) last."""
+    order = {"HIGH": 0, "LOW": 1, "NO_DATA": 2, "OK": 3, "WARNING": 5}
     order.setdefault("FAIL", 0)
-    order.setdefault("WARNING", 1)
     return order.get(status, 99)
+
+
+def column_covered_by_enabled_limit(
+    canon_col: str,
+    defs: Iterable[Any],
+    canon_columns: Any,
+) -> bool:
+    """True if some enabled limit resolves to this canonical column."""
+    for d in defs:
+        if not getattr(d, "is_enabled", True):
+            continue
+        name = getattr(d, "parameter_name", "") or ""
+        c = resolve_data_column(name, canon_columns)
+        if c == canon_col:
+            return True
+    return False
 
 
 def status_sort_rank(status: str) -> int:
     """Legacy + v3."""
-    if status in ("HIGH", "LOW", "NO_DATA", "OK"):
+    if status in ("HIGH", "LOW", "NO_DATA", "OK", "WARNING"):
         return status_sort_rank_v3(status)
     order = {
         Status.FAIL.value: 0,

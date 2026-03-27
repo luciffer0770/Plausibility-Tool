@@ -16,6 +16,8 @@ def _status_tag(st: str) -> str:
         return "ok"
     if s in ("HIGH", "LOW", "FAIL"):
         return "fail"
+    if s == "WARNING":
+        return "warn"
     return "nodata"
 
 
@@ -83,7 +85,7 @@ class ResultsTreeview(ttk.Frame):
             "vmin": ("Min", 48),
             "vmax": ("Max", 48),
             "vavg": ("Avg", 48),
-            "zeit_viol": ("ZEIT (out of range)", 140),
+            "zeit_viol": ("ZEIT (violations)", 130),
             "vsample": ("Values (sample)", 110),
             "limits": ("Limits", 92),
             "status": ("Status", 44),
@@ -104,6 +106,7 @@ class ResultsTreeview(ttk.Frame):
 
         self.tree.tag_configure("ok", background="#E8F5E9")
         self.tree.tag_configure("fail", background="#FDEDED")
+        self.tree.tag_configure("warn", background="#FFF9E6")
         self.tree.tag_configure("nodata", background="#F0F0F0")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)

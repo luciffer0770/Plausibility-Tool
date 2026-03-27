@@ -13,6 +13,7 @@ from core.data_loader import build_canonical_numeric_df, load_puma_file, row_tim
 from core.models import LimitDefinition, ParameterType
 from core.plausibility_engine import (
     check_parameter,
+    column_covered_by_enabled_limit,
     limits_display_str,
     resolve_data_column,
     status_sort_rank,
@@ -60,6 +61,9 @@ def run_plausibility_for_file(
     NO_DATA if column missing or no numbers. Optional ZEIT column aligns row index with
     violation timestamps stored in `measurements.timestamp`.
 
+    Canonical numeric columns in the file **without** any enabled limit are appended as
+    **WARNING** rows (present in PUMA, not configured — add limits in LIMITS CONFIG).
+
     `mappings` is ignored in v3 (kept for API compatibility).
     """
     path = Path(file_path)
@@ -69,10 +73,10 @@ def run_plausibility_for_file(
     zeit_series = row_time_labels_for_dataframe(df_raw)
 
     defs = db.get_limit_profile(engine_type_value)
-    defs_by_name = {d.parameter_name: d for d in defs}
 
     results: List[tuple[Any, ...]] = []
     ok_n = high_n = low_n = nd_n = 0
+    warn_unconfigured = 0
 
     for d in sorted(defs, key=lambda x: x.parameter_name):
         if not d.is_enabled:
@@ -155,6 +159,54 @@ def run_plausibility_for_file(
             )
         )
 
+    # PUMA columns with data but no enabled limit definition (informational WARNING)
+    enabled_defs = [d for d in defs if d.is_enabled]
+    for col in sorted(canon_df.columns, key=str):
+        if column_covered_by_enabled_limit(str(col), enabled_defs, canon_df.columns):
+            continue
+        series = canon_df[col]
+        vals: List[float] = []
+        for i in range(len(series)):
+            v = series.iloc[i]
+            if pd.notna(v):
+                try:
+                    vals.append(float(v))
+                except (TypeError, ValueError):
+                    pass
+        if not vals:
+            continue
+        desc, cat, ptype_s, unit = parameter_defaults(str(col))
+        vmin = min(vals)
+        vmax = max(vals)
+        vavg = sum(vals) / len(vals)
+        nruns = len(vals)
+        vsample = _format_values_sample(vals)
+        warn_unconfigured += 1
+        results.append(
+            (
+                0,
+                str(col),
+                desc,
+                cat,
+                ptype_s,
+                nruns,
+                vavg,
+                vmin,
+                vmax,
+                vavg,
+                "aggregate",
+                None,
+                "WARNING",
+                None,
+                None,
+                None,
+                "Present in PUMA file but no limit configured for this engine profile. "
+                "Add a row in LIMITS CONFIG or disable checking by ignoring.",
+                "",
+                vsample,
+            )
+        )
+
     fname = file_name or path.name
     sid = db.insert_upload_session(
         project_id,
@@ -162,7 +214,7 @@ def run_plausibility_for_file(
         str(path.resolve()),
         record_count=len(canon_df),
         pass_count=ok_n,
-        warn_count=0,
+        warn_count=warn_unconfigured,
         fail_count=high_n + low_n,
         version_test=meta.get("versiont"),
         application=meta.get("prname"),
@@ -191,13 +243,14 @@ def run_plausibility_for_file(
         nd_n,
     )
     logger.info(
-        "Session %s: rows=%s OK=%s HIGH=%s LOW=%s ND=%s",
+        "Session %s: rows=%s OK=%s HIGH=%s LOW=%s ND=%s UNCONFIG_WARN=%s",
         sid,
         len(canon_df),
         ok_n,
         high_n,
         low_n,
         nd_n,
+        warn_unconfigured,
     )
     return sid
 
@@ -214,7 +267,7 @@ def sort_measurement_results(rows: List[dict[str, Any]]) -> List[dict[str, Any]]
 
 
 def measurements_to_summary_counts(rows: List[dict[str, Any]]) -> dict[str, int]:
-    """Counts for v3 statuses."""
+    """Counts for v3 statuses (includes WARNING = PUMA column without limit)."""
     out = {
         "OK": 0,
         "HIGH": 0,

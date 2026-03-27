@@ -366,7 +366,15 @@ class UploadPage(BasePage):
                 session_note=self.note_var.get().strip() or None,
             )
             self.controller.set_current_session(sid)
-            messagebox.showinfo("Bosch Plausibility Check", f"Analysis complete. Session id {sid}.")
+            rows = self.controller.db.get_measurements_for_session(sid)
+            n_warn = sum(1 for r in rows if str(r.get("status", "")).upper() == "WARNING")
+            msg = f"Analysis complete. Session id {sid}."
+            if n_warn > 0:
+                msg += (
+                    f"\n\nWarning: {n_warn} column(s) in the file have no limit configured for this engine profile. "
+                    "They appear as WARNING at the bottom of Results — add limits in LIMITS CONFIG if needed."
+                )
+            messagebox.showinfo("Bosch Plausibility Check", msg)
             self.controller.show_page("analysis")
         except Exception as e:
             logger.exception("Analysis failed")

@@ -330,6 +330,16 @@ class AnalysisPage(BasePage):
 
         rows = db.get_measurements_for_session(sid)
         self._all_rows = sort_measurement_results(rows)
+        n_warn = sum(1 for r in self._all_rows if str(r.get("status", "")).upper() == "WARNING")
+        base = self.session_banner.cget("text")
+        if n_warn > 0 and "no limit" not in (base or ""):
+            warn_msg = (
+                f"Warning: {n_warn} PUMA column(s) have no limit configured — "
+                "see WARNING rows at bottom; add limits in LIMITS CONFIG."
+            )
+            self.session_banner.configure(
+                text=(base + "  |  " + warn_msg) if base else warn_msg
+            )
         self._apply_filters()
         self._update_charts()
 
